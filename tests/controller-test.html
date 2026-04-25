@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>SwiCC 手柄模拟测试</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;color:#e0e0e0;padding:30px}
+        h1{color:#64ffda;margin-bottom:6px}
+        .sub{color:#888;margin-bottom:20px}
+        .card{background:#16213e;border:1px solid #2a3a5e;border-radius:12px;padding:20px;margin-bottom:16px;max-width:650px}
+        .card h2{color:#bb86fc;margin-bottom:12px;font-size:16px}
+        button{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;margin:3px;transition:all .15s}
+        .bp{background:#64ffda;color:#1a1a2e}.bp:hover{background:#4de8c4}
+        .bd{background:#ff5252;color:#fff}
+        .bs{background:#2a3a5e;color:#e0e0e0}.bs:hover{background:#3a4a6e}
+        button:disabled{opacity:.4;cursor:not-allowed}
+        .status{display:inline-block;padding:3px 10px;border-radius:16px;font-size:13px;font-weight:600}
+        .s-off{background:#ff525233;color:#ff5252}
+        .s-on{background:#69f0ae33;color:#69f0ae}
+        .ctrl-grid{display:grid;grid-template-columns:repeat(3,64px);gap:4px;justify-content:center;margin:12px 0}
+        .ctrl-grid button{width:64px;height:48px;font-size:18px;border-radius:10px;background:#2a3a5e;color:#fff}
+        .ctrl-grid button:hover{background:#4a5a8e}
+        .ctrl-grid button:active,.ctrl-grid button.pressed{background:#64ffda;color:#1a1a2e}
+        .ctrl-grid .empty{visibility:hidden}
+        .face-grid{display:grid;grid-template-columns:repeat(3,64px);gap:4px;justify-content:center;margin:12px 0}
+        .face-grid button{width:64px;height:48px;font-size:16px;font-weight:700;border-radius:10px}
+        .face-grid .empty{visibility:hidden}
+        .face-grid .btn-a{background:#0f0;color:#000}.face-grid .btn-b{background:#f00;color:#fff}
+        .face-grid .btn-x{background:#00f;color:#fff}.face-grid .btn-y{background:#ff0;color:#000}
+        .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+        #log{background:#0d1117;border:1px solid #2a3a5e;border-radius:8px;padding:12px;font-family:monospace;font-size:12px;line-height:1.5;max-height:200px;overflow-y:auto;white-space:pre-wrap}
+        .log-s{color:#64ffda}.log-r{color:#ffd740}.log-i{color:#82aaff}.log-e{color:#ff5252}.log-ok{color:#69f0ae}
+        .hint{color:#ffd740;font-size:13px;background:#ffd74015;padding:8px 12px;border-radius:8px;margin-bottom:12px}
+        .sep{display:flex;gap:24px;flex-wrap:wrap}
+    </style>
+</head>
+<body>
+<h1>🎮 SwiCC 手柄模拟测试</h1>
+<p class="sub">验证 SwiCC 是否能控制 Switch</p>
+
+<div class="card">
+    <h2>1. 连接 SwiCC</h2>
+    <div class="hint">⚠️ 请先确保 Switch 已开启「Pro手柄有线连接」（系统设置 → 手柄与感应器）</div>
+    <div class="row">
+        <button class="bp" id="connBtn" onclick="doConnect()">选择串口 & 连接</button>
+        <button class="bd" id="discBtn" onclick="doDisconnect()" disabled>断开</button>
+        <span class="status s-off" id="badge">未连接</span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>2. 测试按键（点击或用键盘 WASD / 方向键 / 空格）</h2>
+    <div class="sep">
+        <div>
+            <p style="text-align:center;color:#888;font-size:13px;margin-bottom:4px">方向键 D-Pad</p>
+            <div class="ctrl-grid">
+                <button class="empty">.</button>
+                <button id="k_up" onmousedown="press('up')" onmouseup="release()">▲</button>
+                <button class="empty">.</button>
+                <button id="k_left" onmousedown="press('left')" onmouseup="release()">◄</button>
+                <button class="empty">.</button>
+                <button id="k_right" onmousedown="press('right')" onmouseup="release()">►</button>
+                <button class="empty">.</button>
+                <button id="k_down" onmousedown="press('down')" onmouseup="release()">▼</button>
+                <button class="empty">.</button>
+            </div>
+        </div>
+        <div>
+            <p style="text-align:center;color:#888;font-size:13px;margin-bottom:4px">ABXY 按钮</p>
+            <div class="face-grid">
+                <button class="empty">.</button>
+                <button class="btn-x" id="k_x" onmousedown="press('x')" onmouseup="release()">X</button>
+                <button class="empty">.</button>
+                <button class="btn-y" id="k_y" onmousedown="press('y')" onmouseup="release()">Y</button>
+                <button class="empty">.</button>
+                <button class="btn-a" id="k_a" onmousedown="press('a')" onmouseup="release()">A</button>
+                <button class="empty">.</button>
+                <button class="btn-b" id="k_b" onmousedown="press('b')" onmouseup="release()">B</button>
+                <button class="empty">.</button>
+            </div>
+        </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+        <button class="bs" onmousedown="press('home')" onmouseup="release()">🏠 Home</button>
+        <button class="bs" onmousedown="press('plus')" onmouseup="release()">+ Plus</button>
+        <button class="bs" onmousedown="press('minus')" onmouseup="release()">- Minus</button>
+        <button class="bs" onmousedown="press('l')" onmouseup="release()">L</button>
+        <button class="bs" onmousedown="press('r')" onmouseup="release()">R</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>3. 自动连按测试</h2>
+    <p style="color:#888;font-size:13px;margin-bottom:8px">快速连按 A 键 5 次，验证自动指令流是否正常</p>
+    <button class="bs" onclick="autoTest()" id="autoBtn">▶ 运行连按测试</button>
+</div>
+
+<div class="card">
+    <h2>📋 日志</h2>
+    <button class="bs" onclick="document.getElementById('log').innerHTML=''" style="margin-bottom:8px">清空</button>
+    <div id="log"></div>
+</div>
+
+<script>
+// Pro Controller digital byte mapping
+// Byte0: Y(0) X(1) B(2) A(3) SR_R(4) SL_R(5) R(6) ZR(7)
+// Byte1: -(0) -(1) -(2) -(3) Capture(5) Home(4) LStick(3) RStick(2) Plus(1) Minus(0)
+// Byte2: Down(0) Up(1) Right(2) Left(3) SR_L(4) SL_L(5) L(6) ZL(7)
+const MAP = {
+    y:     '010000', x:     '020000', b:     '040000', a:     '080000',
+    r:     '400000', zr:    '800000',
+    minus: '000100', plus:  '000200',
+    home:  '001000', capture:'002000',
+    down:  '000001', up:    '000002', right: '000004', left:  '000008',
+    l:     '000040', zl:    '000080',
+};
+
+let port=null, writer=null, reader=null, reading=false;
+
+function log(m,t='i'){
+    const el=document.getElementById('log');
+    const s=document.createElement('span');
+    s.className='log-'+t;
+    s.textContent=`[${new Date().toLocaleTimeString('zh-CN')}] ${m}\n`;
+    el.appendChild(s); el.scrollTop=el.scrollHeight;
+}
+
+async function doConnect(){
+    try{
+        if(!('serial' in navigator)){log('❌ 浏览器不支持 Web Serial','e');return}
+        port=await navigator.serial.requestPort();
+        await port.open({baudRate:115200});
+        writer=port.writable.getWriter();
+        reading=true;
+        reader=port.readable.getReader();
+        readLoop();
+        // Set real-time mode
+        await send('+SPM RT');
+        document.getElementById('connBtn').disabled=true;
+        document.getElementById('discBtn').disabled=false;
+        const b=document.getElementById('badge');
+        b.textContent='已连接'; b.className='status s-on';
+        log('✅ 连接成功，已设置为实时模式','ok');
+    }catch(e){log('❌ '+e.message,'e')}
+}
+
+async function readLoop(){
+    const dec=new TextDecoder(); let buf='';
+    try{
+        while(reading){
+            const{value,done}=await reader.read();
+            if(done)break;
+            buf+=dec.decode(value);
+            let i;
+            while((i=buf.indexOf('\n'))!==-1){
+                const line=buf.substring(0,i).trim();
+                buf=buf.substring(i+1);
+                if(line)log('← '+line,'r');
+            }
+        }
+    }catch(e){if(reading)log('读取错误: '+e.message,'e')}
+}
+
+async function doDisconnect(){
+    reading=false;
+    try{
+        if(reader){await reader.cancel();reader.releaseLock();reader=null}
+        if(writer){await writer.close();writer.releaseLock();writer=null}
+        if(port){await port.close();port=null}
+    }catch(e){}
+    document.getElementById('connBtn').disabled=false;
+    document.getElementById('discBtn').disabled=true;
+    const b=document.getElementById('badge');
+    b.textContent='未连接'; b.className='status s-off';
+    log('已断开','i');
+}
+
+async function send(cmd){
+    if(!writer)return;
+    await writer.write(new TextEncoder().encode(cmd+'\n'));
+    log('→ '+cmd,'s');
+}
+
+function press(btn){
+    const hex=MAP[btn];
+    if(!hex||!writer)return;
+    send('+QD '+hex);
+}
+function release(){
+    if(!writer)return;
+    send('+QD 000000');
+}
+
+// Keyboard support
+const keyMap={
+    'w':'up','arrowup':'up','s':'down','arrowdown':'down',
+    'a':'left','arrowleft':'left','d':'right','arrowright':'right',
+    ' ':'a','enter':'a','j':'a','k':'b','u':'x','i':'y',
+};
+const pressed=new Set();
+document.addEventListener('keydown',e=>{
+    const k=e.key.toLowerCase();
+    const btn=keyMap[k];
+    if(btn && !pressed.has(k)){
+        pressed.add(k);
+        press(btn);
+        const el=document.getElementById('k_'+btn);
+        if(el)el.classList.add('pressed');
+        e.preventDefault();
+    }
+});
+document.addEventListener('keyup',e=>{
+    const k=e.key.toLowerCase();
+    pressed.delete(k);
+    if(pressed.size===0) release();
+    const btn=keyMap[k];
+    if(btn){
+        const el=document.getElementById('k_'+btn);
+        if(el)el.classList.remove('pressed');
+    }
+});
+
+async function autoTest(){
+    if(!writer){log('❌ 请先连接','e');return}
+    const btn=document.getElementById('autoBtn');
+    btn.disabled=true; btn.textContent='⏳ 测试中...';
+    log('🧪 开始连按 A 测试（5次）...','i');
+    for(let i=0;i<5;i++){
+        await send('+QD 080000'); // Press A
+        await new Promise(r=>setTimeout(r,100));
+        await send('+QD 000000'); // Release
+        await new Promise(r=>setTimeout(r,150));
+        log(`  第 ${i+1}/5 次按 A 完成`,'ok');
+    }
+    log('✅ 连按测试完成！检查 Switch 是否有 5 次 A 键响应','ok');
+    btn.disabled=false; btn.textContent='▶ 运行连按测试';
+}
+</script>
+</body>
+</html>

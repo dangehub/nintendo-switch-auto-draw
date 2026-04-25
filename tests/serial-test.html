@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>SwiCC 串口连接测试</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            padding: 40px;
+            min-height: 100vh;
+        }
+        h1 { color: #64ffda; margin-bottom: 8px; }
+        .subtitle { color: #888; margin-bottom: 24px; }
+        .card {
+            background: #16213e;
+            border: 1px solid #2a3a5e;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            max-width: 700px;
+        }
+        .card h2 { color: #bb86fc; margin-bottom: 16px; font-size: 18px; }
+        button {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 4px;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #64ffda; color: #1a1a2e; }
+        .btn-primary:hover { background: #4de8c4; }
+        .btn-danger { background: #ff5252; color: #fff; }
+        .btn-secondary { background: #2a3a5e; color: #e0e0e0; }
+        .btn-secondary:hover { background: #3a4a6e; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .baud-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .baud-btn { padding: 8px 16px; border-radius: 6px; }
+        .baud-btn.active { background: #64ffda; color: #1a1a2e; }
+        .baud-btn:not(.active) { background: #2a3a5e; color: #e0e0e0; }
+        #log {
+            background: #0d1117;
+            border: 1px solid #2a3a5e;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Cascadia Code', 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-send { color: #64ffda; }
+        .log-recv { color: #ffd740; }
+        .log-info { color: #82aaff; }
+        .log-error { color: #ff5252; }
+        .log-success { color: #69f0ae; }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .status-disconnected { background: #ff525233; color: #ff5252; }
+        .status-connected { background: #69f0ae33; color: #69f0ae; }
+        .status-testing { background: #ffd74033; color: #ffd740; }
+        .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .manual-input {
+            display: flex; gap: 8px; margin-top: 12px; align-items: center;
+        }
+        .manual-input input {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0d1117;
+            border: 1px solid #2a3a5e;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔌 SwiCC 串口连接诊断工具</h1>
+    <p class="subtitle">用于排查 SwiCC 设备连接问题</p>
+
+    <div class="card">
+        <h2>步骤 1：选择波特率并连接</h2>
+        <p style="color:#888; margin-bottom:12px;">
+            2wiCC 固件使用 460800，GLaMS2 默认使用 115200。<br>
+            如果你使用 2wiCC_Comms 通信桥，请两个都尝试。
+        </p>
+        <div class="baud-buttons" id="baudButtons">
+            <button class="baud-btn" data-baud="115200" onclick="selectBaud(115200)">115200</button>
+            <button class="baud-btn active" data-baud="460800" onclick="selectBaud(460800)">460800 (推荐)</button>
+            <button class="baud-btn" data-baud="9600" onclick="selectBaud(9600)">9600</button>
+            <button class="baud-btn" data-baud="921600" onclick="selectBaud(921600)">921600</button>
+        </div>
+        <div class="controls">
+            <button class="btn-primary" id="connectBtn" onclick="connectPort()">选择串口 & 连接</button>
+            <button class="btn-danger" id="disconnectBtn" onclick="disconnectPort()" disabled>断开</button>
+            <span class="status status-disconnected" id="statusBadge">未连接</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>步骤 2：发送测试命令</h2>
+        <div class="controls">
+            <button class="btn-secondary" onclick="sendCmd('+ID ')" disabled id="btnId">发送 +ID（设备识别）</button>
+            <button class="btn-secondary" onclick="sendCmd('+VER ')" disabled id="btnVer">发送 +VER（固件版本）</button>
+            <button class="btn-secondary" onclick="sendCmd('+ECHO hello')" disabled id="btnEcho">发送 +ECHO</button>
+            <button class="btn-secondary" onclick="sendCmd('+GCS ')" disabled id="btnGcs">发送 +GCS（USB状态）</button>
+        </div>
+        <div class="manual-input">
+            <input type="text" id="manualCmd" placeholder="手动输入命令（如 +ID ）" onkeydown="if(event.key==='Enter')sendManual()">
+            <button class="btn-secondary" onclick="sendManual()" disabled id="btnManual">发送</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>步骤 3：自动扫描波特率</h2>
+        <p style="color:#888; margin-bottom:12px;">自动尝试常见波特率，找到能收到回复的那个。</p>
+        <button class="btn-secondary" id="btnScan" onclick="scanBaudRates()">🔍 开始自动扫描</button>
+    </div>
+
+    <div class="card">
+        <h2>📋 通信日志</h2>
+        <button class="btn-secondary" onclick="clearLog()" style="margin-bottom:12px;">清空</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let port = null;
+        let reader = null;
+        let writer = null;
+        let selectedBaud = 460800;
+        let isReading = false;
+
+        function selectBaud(baud) {
+            selectedBaud = baud;
+            document.querySelectorAll('.baud-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.baud) === baud);
+            });
+            log(`波特率切换为 ${baud}`, 'info');
+        }
+
+        function log(msg, type = 'info') {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('zh-CN');
+            const span = document.createElement('span');
+            span.className = `log-${type}`;
+            span.textContent = `[${time}] ${msg}\n`;
+            el.appendChild(span);
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function setConnected(connected) {
+            const badge = document.getElementById('statusBadge');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const cmdBtns = ['btnId', 'btnVer', 'btnEcho', 'btnGcs', 'btnManual'];
+
+            if (connected) {
+                badge.textContent = `已连接 (${selectedBaud} baud)`;
+                badge.className = 'status status-connected';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                cmdBtns.forEach(id => document.getElementById(id).disabled = false);
+            } else {
+                badge.textContent = '未连接';
+                badge.className = 'status status-disconnected';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                cmdBtns.forEach(id => document.getElementById(id).disabled = true);
+            }
+        }
+
+        async function connectPort() {
+            try {
+                if (!('serial' in navigator)) {
+                    log('❌ 当前浏览器不支持 Web Serial API！请使用 Chrome 或 Edge。', 'error');
+                    return;
+                }
+
+                port = await navigator.serial.requestPort();
+                log(`已选择串口设备`, 'info');
+
+                await port.open({ baudRate: selectedBaud });
+                log(`✅ 串口已打开（波特率: ${selectedBaud}）`, 'success');
+
+                writer = port.writable.getWriter();
+
+                // Start reading
+                startReading();
+
+                setConnected(true);
+            } catch (err) {
+                log(`❌ 连接失败: ${err.message}`, 'error');
+                port = null;
+            }
+        }
+
+        async function startReading() {
+            if (!port || !port.readable) return;
+            reader = port.readable.getReader();
+            isReading = true;
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            try {
+                while (isReading) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        const text = decoder.decode(value);
+                        buffer += text;
+
+                        // Process complete lines
+                        let nlIndex;
+                        while ((nlIndex = buffer.indexOf('\n')) !== -1) {
+                            let line = buffer.substring(0, nlIndex).trim();
+                            buffer = buffer.substring(nlIndex + 1);
+                            if (line.length > 0) {
+                                log(`← 收到: ${line}`, 'recv');
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                if (isReading) {
+                    log(`读取错误: ${err.message}`, 'error');
+                }
+            }
+        }
+
+        async function disconnectPort() {
+            isReading = false;
+            try {
+                if (reader) {
+                    await reader.cancel();
+                    reader.releaseLock();
+                    reader = null;
+                }
+                if (writer) {
+                    await writer.close();
+                    writer.releaseLock();
+                    writer = null;
+                }
+                if (port) {
+                    await port.close();
+                    port = null;
+                }
+                log('已断开连接', 'info');
+            } catch (err) {
+                log(`断开出错: ${err.message}`, 'error');
+            }
+            setConnected(false);
+        }
+
+        async function sendCmd(cmd) {
+            if (!writer) {
+                log('❌ 未连接', 'error');
+                return;
+            }
+            try {
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(cmd + '\n'));
+                log(`→ 发送: ${cmd}`, 'send');
+            } catch (err) {
+                log(`❌ 发送失败: ${err.message}`, 'error');
+            }
+        }
+
+        function sendManual() {
+            const input = document.getElementById('manualCmd');
+            if (input.value.trim()) {
+                sendCmd(input.value.trim());
+                input.value = '';
+            }
+        }
+
+        async function scanBaudRates() {
+            const bauds = [460800, 115200, 921600, 9600, 19200, 38400, 57600, 230400];
+            const scanBtn = document.getElementById('btnScan');
+            scanBtn.disabled = true;
+            scanBtn.textContent = '🔍 扫描中...';
+
+            log('========== 开始自动波特率扫描 ==========', 'info');
+
+            // First, ask user to select port
+            let scanPort;
+            try {
+                scanPort = await navigator.serial.requestPort();
+                log('已选择串口设备，开始扫描...', 'info');
+            } catch (err) {
+                log(`❌ 未选择设备: ${err.message}`, 'error');
+                scanBtn.disabled = false;
+                scanBtn.textContent = '🔍 开始自动扫描';
+                return;
+            }
+
+            for (const baud of bauds) {
+                log(`\n尝试波特率: ${baud}...`, 'info');
+                try {
+                    await scanPort.open({ baudRate: baud });
+
+                    const w = scanPort.writable.getWriter();
+                    const r = scanPort.readable.getReader();
+
+                    // Send +ID command
+                    const encoder = new TextEncoder();
+                    await w.write(encoder.encode('+ID \n'));
+                    log(`  → 已发送 +ID（波特率 ${baud}）`, 'send');
+
+                    // Wait for response with timeout
+                    const decoder = new TextDecoder();
+                    let received = '';
+                    const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('TIMEOUT'), 1500));
+                    const readPromise = (async () => {
+                        try {
+                            const { value, done } = await r.read();
+                            if (value) return decoder.decode(value);
+                        } catch (e) {}
+                        return '';
+                    })();
+
+                    const result = await Promise.race([readPromise, timeoutPromise]);
+
+                    if (result === 'TIMEOUT') {
+                        log(`  ✗ 波特率 ${baud}: 无响应（超时）`, 'error');
+                    } else if (result) {
+                        received = result.trim();
+                        log(`  ✓ 波特率 ${baud}: 收到回复「${received}」`, 'success');
+                        if (received.includes('+2wiCC') || received.includes('+SwiCC')) {
+                            log(`\n🎉🎉🎉 找到正确波特率: ${baud} 🎉🎉🎉`, 'success');
+                            log(`设备识别为: ${received}`, 'success');
+                        }
+                    } else {
+                        log(`  ✗ 波特率 ${baud}: 空响应`, 'error');
+                    }
+
+                    // Cleanup
+                    await r.cancel();
+                    r.releaseLock();
+                    await w.close();
+                    w.releaseLock();
+                    await scanPort.close();
+
+                    // Small delay between attempts
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
+                } catch (err) {
+                    log(`  ✗ 波特率 ${baud}: ${err.message}`, 'error');
+                    try { await scanPort.close(); } catch (_) {}
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+            }
+
+            log('\n========== 扫描完成 ==========', 'info');
+            scanBtn.disabled = false;
+            scanBtn.textContent = '🔍 开始自动扫描';
+        }
+    </script>
+</body>
+</html>

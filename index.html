@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS Auto Draw - Switch 自动绘图工具</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 顶部 -->
+    <div class="header">
+        <h1>🎮 NS Auto Draw</h1>
+        <span class="subtitle">Switch 自动绘图工具</span>
+        <div class="connection-bar">
+            <span class="badge badge-off" id="connBadge">未连接</span>
+            <span id="deviceInfo" style="font-size:12px;color:var(--text-muted)"></span>
+            <button class="btn btn-primary" id="connectBtn">连接 SwiCC</button>
+            <button class="btn btn-danger" id="disconnectBtn" disabled>断开</button>
+        </div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="main">
+        <!-- 左列：图片 -->
+        <div class="card">
+            <div class="card-title">📷 图片</div>
+            <div class="upload-zone" id="uploadZone">
+                <div class="icon">📁</div>
+                <div>拖拽图片到此处 或 <strong>点击上传</strong></div>
+                <div style="font-size:12px;margin-top:4px;color:var(--text-muted)">支持 JPG / PNG</div>
+                <input type="file" id="fileInput" accept="image/*">
+            </div>
+            <div class="preview-row" id="previewRow" style="display:none">
+                <div class="preview-box">
+                    <canvas id="srcPreview" width="256" height="256"></canvas>
+                    <div class="label" id="srcLabel">原图</div>
+                </div>
+                <div class="preview-box">
+                    <canvas id="outPreview" width="256" height="256"></canvas>
+                    <div class="label" id="outLabel">量化后</div>
+                </div>
+            </div>
+            <div class="palette" id="paletteDisplay"></div>
+            <div class="palette-info" id="paletteInfo"></div>
+        </div>
+
+        <!-- 右列：参数 & 控制 -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+            <div class="card">
+                <div class="card-title">⚙️ 参数</div>
+                <div class="param-grid">
+                    <label>画布宽度</label>
+                    <input type="number" id="canvasW" value="256" min="8" max="512" step="1">
+                    <label>画布高度</label>
+                    <input type="number" id="canvasH" value="256" min="8" max="512" step="1">
+                    <label>颜色数量</label>
+                    <input type="range" id="numColors" min="2" max="32" value="16">
+                    <label>起始 X</label>
+                    <input type="number" id="startX" value="128" min="0" max="512">
+                    <label>起始 Y</label>
+                    <input type="number" id="startY" value="128" min="0" max="512">
+                    
+                    <label style="color:var(--primary);font-weight:bold">图像缩放</label>
+                    <input type="number" id="imgScale" value="1.0" min="0.1" max="10.0" step="0.1">
+                    <label style="color:var(--primary);font-weight:bold">图像偏移 X</label>
+                    <input type="number" id="imgOffsetX" value="0" step="1">
+                    <label style="color:var(--primary);font-weight:bold">图像偏移 Y</label>
+                    <input type="number" id="imgOffsetY" value="0" step="1">
+
+                    <label>按键帧数(pf)</label>
+                    <input type="number" id="pressFrames" value="3" min="1" max="10">
+                    <label>释放帧数(rf)</label>
+                    <input type="number" id="releaseFrames" value="3" min="1" max="10">
+                    <label>抖动算法</label>
+                    <select id="ditherMode">
+                        <option value="fs">Floyd-Steinberg</option>
+                        <option value="none">无（直接量化）</option>
+                    </select>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:8px">
+                    颜色数: <strong id="colorCountLabel">16</strong>
+                </div>
+                <button class="btn btn-accent" id="processBtn" style="margin-top:12px;width:100%" disabled>
+                    🔄 处理图片
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">🎨 绘图控制</div>
+                <div class="stats" id="statsPanel" style="display:none">
+                    <div class="stat-item">
+                        <div class="stat-value" id="statLayers">-</div>
+                        <div class="stat-label">颜色层</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="statPixels">-</div>
+                        <div class="stat-label">总像素</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="statTime">-</div>
+                        <div class="stat-label">预估时间</div>
+                    </div>
+                </div>
+
+                <div class="progress-container" id="progressContainer" style="display:none">
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">就绪</div>
+                </div>
+
+                <div class="control-row">
+                    <button class="btn btn-primary" id="startBtn" disabled>▶ 开始绘制</button>
+                    <button class="btn" id="pauseBtn" disabled>⏸ 暂停</button>
+                    <button class="btn btn-danger" id="stopBtn" disabled>⏹ 停止</button>
+                </div>
+            </div>
+
+            <!-- 手柄与校准 -->
+            <div class="card">
+                <div class="card-title">🔧 手柄与校准</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                    <button class="btn btn-primary" id="btnDoubleA" disabled>🎮 按 A 键 (用于配对)</button>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+                    <strong>校准测试：</strong>如果你不知道起始坐标是多少，可以测试归零。如果画笔超出边界，说明【参数】里的起始 X/Y 设大了。
+                </div>
+                <div class="control-row">
+                    <button class="btn" id="btnTestHome" disabled>🏠 测归零：移动到 (0,0)</button>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:12px;margin-bottom:8px">
+                    <strong>换色校准：</strong>如果在游戏里光标已经手动置于纯白色（最左上角，横轴最左），点击下方同步：
+                </div>
+                <div class="control-row">
+                    <button class="btn" id="btnResetColorState">🔄 重置网页换色跟踪状态到 (0,0,0)</button>
+                </div>
+                <div style="font-size:12px;color:var(--primary);margin-top:4px" id="colorStateLabel">
+                    当前换色跟踪状态: H:0, S:0, V:0
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志 -->
+        <div class="card log-panel">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <div class="card-title" style="margin:0">📋 日志</div>
+                <button class="btn" id="clearLogBtn" style="margin-left:auto;padding:3px 10px;font-size:11px">清空</button>
+            </div>
+            <div class="log-box" id="logBox"></div>
+        </div>
+    </div>
+
+    <!-- 换色弹窗 -->
+    <div class="modal-overlay" id="colorModal">
+        <div class="modal">
+            <h3>🎨 请切换颜色</h3>
+            <p style="color:var(--text-secondary);font-size:14px">
+                当前层: <strong id="modalLayerInfo"></strong>
+            </p>
+            <div class="color-display" id="modalColorBlock"></div>
+            <div class="color-hex" id="modalColorHex"></div>
+            <div class="color-rgb" id="modalColorRgb"></div>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">
+                请在游戏中选择此颜色，然后点击"继续"
+            </p>
+            <div class="modal-btns">
+                <button class="btn btn-primary" id="modalContinueBtn">继续绘制</button>
+                <button class="btn btn-danger" id="modalStopBtn">停止</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

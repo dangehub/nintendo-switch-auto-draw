@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>绘图引擎测试 v4</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;padding:24px}
+        h1{font-size:20px;background:linear-gradient(90deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+        .sub{color:#8b949e;font-size:13px;margin-bottom:20px}
+        .row{display:flex;gap:16px;flex-wrap:wrap}
+        .card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:16px;flex:1;min-width:300px}
+        .card h2{font-size:15px;color:#bc8cff;margin-bottom:10px}
+        button{padding:7px 14px;border:1px solid #30363d;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;background:#161b22;color:#e6edf3;transition:all .15s;margin:3px}
+        button:hover{border-color:#58a6ff}
+        button:disabled{opacity:.4;cursor:not-allowed}
+        .bp{background:#238636;border-color:#2ea043;color:#fff}
+        .bd{background:#da3633;border-color:#f85149;color:#fff}
+        .ba{background:#1f6feb;border-color:#388bfd;color:#fff}
+        .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:16px;font-size:12px;font-weight:600}
+        .badge::before{content:'';width:8px;height:8px;border-radius:50%}
+        .b-off{background:#f8514933;color:#f85149}.b-off::before{background:#f85149}
+        .b-on{background:#3fb95033;color:#3fb950}.b-on::before{background:#3fb950}
+        .test-item{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px;margin-bottom:8px}
+        .test-item h3{font-size:13px;color:#58a6ff;margin-bottom:4px}
+        .test-item p{font-size:12px;color:#8b949e;margin-bottom:8px}
+        #log{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;font-family:monospace;font-size:12px;line-height:1.5;max-height:300px;overflow-y:auto;white-space:pre-wrap}
+        .log-s{color:#3fb950}.log-r{color:#d29922}.log-i{color:#58a6ff}.log-e{color:#f85149}
+        .param{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+        .param label{font-size:13px;color:#8b949e;white-space:nowrap}
+        .param input,.param select{padding:4px 8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e6edf3;font-size:13px;width:60px}
+        .hint{background:#d2992215;border:1px solid #d2992244;border-radius:6px;padding:8px 12px;font-size:12px;color:#d29922;margin-bottom:10px}
+        .ok{background:#3fb95015;border:1px solid #3fb95044;border-radius:6px;padding:8px 12px;font-size:12px;color:#3fb950;margin-bottom:10px}
+        .busy{pointer-events:none;opacity:.5}
+    </style>
+</head>
+<body>
+<h1>🧪 绘图引擎测试 v4</h1>
+<p class="sub">增加“按键帧数(pf)”调节，解决方向键按下被吞或连按的问题</p>
+
+<!-- 连接 -->
+<div class="card" style="max-width:600px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="bp" id="connBtn">连接 SwiCC</button>
+        <button class="bd" id="discBtn" disabled>断开</button>
+        <span class="badge b-off" id="badge">未连接</span>
+    </div>
+</div>
+
+<!-- 全局参数 -->
+<div class="card" style="max-width:600px">
+    <h2>⚙️ 全局参数</h2>
+    <div class="hint">
+        💡 Switch 游戏可能以 30fps 运行或存在掉帧。1帧的按键(16ms)很容易被吞掉。<br>
+        增加【按键帧数】可防吞键，增加【释放帧数】可防连按（防多移）。
+    </div>
+    <div class="param">
+        <label>按键帧数(pf):</label>
+        <input type="number" id="pf" value="2" min="1" max="10" title="每次按键持续多少帧">
+        <label>释放帧数(rf):</label>
+        <input type="number" id="rf" value="3" min="1" max="10" title="每次按键后插入多少帧NONE">
+    </div>
+    <div class="param">
+        <label>发送模式:</label>
+        <select id="sendMode" style="width:auto">
+            <option value="BUF">BUF 缓冲模式（精确 60fps，推荐）</option>
+            <option value="RT">RT 实时模式（每帧间隔 20ms）</option>
+        </select>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 移动精度测试 -->
+    <div class="card">
+        <h2>1️⃣ 移动精度测试</h2>
+        <div class="param">
+            <label>移动步数:</label>
+            <input type="number" id="steps" value="10" min="1" max="50">
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">
+            <button class="ba" onclick="doMove('RIGHT')">➡️ 右移</button>
+            <button class="ba" onclick="doMove('LEFT')">⬅️ 左移</button>
+            <button class="ba" onclick="doMove('DOWN')">⬇️ 下移</button>
+            <button class="ba" onclick="doMove('UP')">⬆️ 上移</button>
+        </div>
+        <p style="font-size:12px;color:#484f58">
+            先测右移，再测左移，看是否回到原位。如果左移多了，说明左键连按了，增加 rf；如果下划线变少，说明被吞键了，增加 pf。
+        </p>
+    </div>
+
+    <!-- 画线测试 -->
+    <div class="card">
+        <h2>2️⃣ 画线测试（方案 C）</h2>
+        <div class="param">
+            <label>线长:</label>
+            <input type="number" id="lineLen" value="10" min="1" max="50">
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">
+            <button class="bp" onclick="doDrawLine('RIGHT')">🎨 画横线（向右）</button>
+            <button class="bp" onclick="doDrawLine('LEFT')">🎨 画横线（向左）</button>
+            <button class="bp" onclick="doDrawLine('DOWN')">🎨 画竖线（向下）</button>
+            <button class="bp" onclick="doDrawLine('UP')">🎨 画竖线（向上）</button>
+        </div>
+
+        <p style="font-size:12px;color:#484f58">
+            帧模式：A×2 → (A+方向 pf帧 + A×rf帧) × N → NONE×rf<br>
+            观察画出的线长是否 = 设定值。
+        </p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 5×5 方块 -->
+    <div class="card">
+        <h2>3️⃣ 图案测试</h2>
+
+        <div class="test-item">
+            <h3>📐 5×5 方块（方案 C 蛇形扫描）</h3>
+            <p>保持 A，蛇形扫描画 5×5。使用全局的 pf 和 rf 参数。</p>
+            <button class="bp" onclick="doDraw5x5()">▶ 画 5×5 方块</button>
+        </div>
+
+        <div class="test-item">
+            <h3>📐 10×10 方块</h3>
+            <button class="bp" onclick="doDraw10x10()">▶ 画 10×10 方块</button>
+        </div>
+
+        <div class="test-item">
+            <h3>🏠 归零测试</h3>
+            <div class="param">
+                <label>距离X:</label><input type="number" id="homeX" value="128">
+                <label>距离Y:</label><input type="number" id="homeY" value="128">
+            </div>
+            <button class="ba" onclick="doGoHome()">▶ 移动到 (0,0)</button>
+        </div>
+    </div>
+</div>
+
+<!-- 日志 -->
+<div class="card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <h2 style="margin:0">📋 日志</h2>
+        <button onclick="document.getElementById('log').innerHTML=''" style="margin-left:auto;padding:3px 8px;font-size:11px">清空</button>
+    </div>
+    <div id="log"></div>
+</div>
+
+<script>
+const B = {
+    NONE: 0x000000, A: 0x080000,
+    LEFT: 0x000008, RIGHT: 0x000004,
+    UP: 0x000002, DOWN: 0x000001,
+};
+
+function toHex6(v) { return v.toString(16).padStart(6, '0').toUpperCase(); }
+function getPF() { return parseInt(document.getElementById('pf').value) || 2; }
+function getRF() { return parseInt(document.getElementById('rf').value) || 3; }
+
+let port = null, writer = null, reader = null, reading = false;
+let busy = false;
+
+function log(msg, t='i') {
+    const el = document.getElementById('log');
+    const s = document.createElement('span');
+    s.className = 'log-' + t;
+    s.textContent = `[${new Date().toLocaleTimeString('zh-CN')}] ${msg}\n`;
+    el.appendChild(s); el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById('connBtn').onclick = async () => {
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        reading = true;
+        reader = port.readable.getReader();
+        readLoop();
+        document.getElementById('connBtn').disabled = true;
+        document.getElementById('discBtn').disabled = false;
+        document.getElementById('badge').textContent = '已连接';
+        document.getElementById('badge').className = 'badge b-on';
+        log('✅ 已连接', 's');
+        await sendCmd('+ID ');
+    } catch(e) { log('❌ ' + e.message, 'e'); }
+};
+document.getElementById('discBtn').onclick = async () => {
+    reading = false;
+    try {
+        if (reader) { await reader.cancel(); reader.releaseLock(); reader = null; }
+        if (writer) { await writer.close(); writer.releaseLock(); writer = null; }
+        if (port) { await port.close(); port = null; }
+    } catch(e) {}
+    document.getElementById('connBtn').disabled = false;
+    document.getElementById('discBtn').disabled = true;
+    document.getElementById('badge').textContent = '未连接';
+    document.getElementById('badge').className = 'badge b-off';
+    log('已断开', 'i');
+};
+async function readLoop() {
+    const dec = new TextDecoder(); let buf = '';
+    try {
+        while (reading) {
+            const {value, done} = await reader.read();
+            if (done) break;
+            buf += dec.decode(value);
+            let i;
+            while ((i = buf.indexOf('\n')) !== -1) {
+                const line = buf.substring(0, i).trim();
+                buf = buf.substring(i + 1);
+                if (line) log('← ' + line, 'r');
+            }
+        }
+    } catch(e) { if (reading) log('读取错误: ' + e.message, 'e'); }
+}
+async function sendCmd(cmd) {
+    if (!writer) return;
+    await writer.write(new TextEncoder().encode(cmd + '\n'));
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── 核心发送函数 ───
+async function sendFrames(frames, label) {
+    if (!writer) { log('❌ 未连接', 'e'); return; }
+    if (busy) { log('⏳ 上一个测试还在执行', 'e'); return; }
+    busy = true;
+    document.body.classList.add('busy');
+
+    try {
+        const mode = document.getElementById('sendMode').value;
+
+        // 清空
+        await sendCmd('+SPM RT');
+        await sendCmd(`+QD ${toHex6(B.NONE)}`);
+        await sleep(100);
+
+        if (mode === 'BUF') {
+            await sendCmd('+SPM BUF');
+            await sleep(100);
+            
+            const padded = [...Array(5).fill(B.NONE), ...frames, ...Array(5).fill(B.NONE)];
+            const BATCH = 80;
+            for (let i = 0; i < padded.length; i += BATCH) {
+                const end = Math.min(i + BATCH, padded.length);
+                let str = '';
+                for (let j = i; j < end; j++) str += `+QD ${toHex6(padded[j])}\n`;
+                await writer.write(new TextEncoder().encode(str));
+                if (end < padded.length) await sleep(Math.ceil((end - i) / 55 * 1000));
+            }
+            const waitMs = Math.ceil(padded.length / 60 * 1000) + 500;
+            log(`${label}: ${frames.length} 帧已发送，等待 ${waitMs}ms...`, 'i');
+            await sleep(waitMs);
+        } else {
+            log(`${label}: ${frames.length} 帧开始发送 (RT)...`, 'i');
+            for (const f of frames) {
+                await sendCmd(`+QD ${toHex6(f)}`);
+                await sleep(20);
+            }
+            await sleep(200);
+        }
+
+        // 恢复
+        await sendCmd('+SPM RT');
+        await sendCmd(`+QD ${toHex6(B.NONE)}`);
+        await sleep(50);
+
+        log(`✅ ${label} 完成`, 's');
+    } catch(e) {
+        log(`❌ ${e.message}`, 'e');
+    } finally {
+        busy = false;
+        document.body.classList.remove('busy');
+    }
+}
+
+// ─── 测试 1：移动精度 ───
+async function doMove(dir) {
+    const pf = getPF();
+    const rf = getRF();
+    const steps = parseInt(document.getElementById('steps').value) || 10;
+    const btn = B[dir];
+
+    const frames = [];
+    for (let i = 0; i < steps; i++) {
+        for (let p = 0; p < pf; p++) frames.push(btn);
+        for (let r = 0; r < rf; r++) frames.push(B.NONE);
+    }
+
+    log(`\n━━━ 移动 ${dir} ${steps} 步 (pf=${pf}, rf=${rf}, 总${frames.length}帧) ━━━`, 'i');
+    await sendFrames(frames, `${dir} ×${steps}`);
+}
+
+// ─── 测试 2：画线 ───
+async function doDrawLine(dir) {
+    const pf = getPF();
+    const rf = getRF();
+    const len = parseInt(document.getElementById('lineLen').value) || 10;
+    const btn = B[dir];
+
+    const frames = [];
+    frames.push(B.A, B.A); // 先按 A
+    for (let i = 0; i < len - 1; i++) {
+        for (let p = 0; p < pf; p++) frames.push(B.A | btn); // A+方向 pf帧
+        for (let r = 0; r < rf; r++) frames.push(B.A);       // 仅A rf帧
+    }
+    for (let r = 0; r < rf; r++) frames.push(B.NONE);
+
+    log(`\n━━━ 画线 ${dir} ${len}px (pf=${pf}, rf=${rf}) ━━━`, 'i');
+    await sendFrames(frames, `画线 ${dir} ×${len}`);
+}
+
+// ─── 测试 3：方块 ───
+async function doDraw5x5() { await drawSquare(5); }
+async function doDraw10x10() { await drawSquare(10); }
+
+async function drawSquare(size) {
+    const pf = getPF();
+    const rf = getRF();
+    const frames = [];
+
+    for (let row = 0; row < size; row++) {
+        const dir = (row % 2 === 0) ? B.RIGHT : B.LEFT;
+
+        frames.push(B.A, B.A); 
+
+        for (let col = 0; col < size - 1; col++) {
+            for (let p = 0; p < pf; p++) frames.push(B.A | dir);
+            for (let r = 0; r < rf; r++) frames.push(B.A);
+        }
+
+        for (let r = 0; r < rf; r++) frames.push(B.NONE); 
+
+        if (row < size - 1) {
+            for (let p = 0; p < pf; p++) frames.push(B.DOWN);
+            for (let r = 0; r < rf; r++) frames.push(B.NONE);
+        }
+    }
+
+    log(`\n━━━ ${size}×${size} 方块 (pf=${pf}, rf=${rf}) ━━━`, 'i');
+    await sendFrames(frames, `${size}×${size} 方块`);
+}
+
+// ─── 归零 ───
+async function doGoHome() {
+    const x = parseInt(document.getElementById('homeX').value) || 128;
+    const y = parseInt(document.getElementById('homeY').value) || 128;
+    const pf = getPF();
+    const rf = getRF();
+
+    const frames = [];
+    for(let i=0; i<x; i++) {
+        for(let p=0; p<pf; p++) frames.push(B.LEFT);
+        for(let r=0; r<rf; r++) frames.push(B.NONE);
+    }
+    for(let i=0; i<y; i++) {
+        for(let p=0; p<pf; p++) frames.push(B.UP);
+        for(let r=0; r<rf; r++) frames.push(B.NONE);
+    }
+
+    log(`\n━━━ 归零: 左${x}+上${y} (总${frames.length}帧) ━━━`, 'i');
+    await sendFrames(frames, `归零 (${x},${y})`);
+}
+
+log('测试工具 v4 就绪', 'i');
+</script>
+</body>
+</html>
