@@ -5,6 +5,10 @@
 import { SwiCCManager } from './swicc-manager.js';
 import { ImageProcessor } from './image-processor.js';
 import { DrawEngine } from './draw-engine.js';
+import { t, initI18n, switchLanguage, getCurrentLang } from './i18n.js';
+
+// 初始化多语言
+initI18n();
 
 // ─── 实例化 ───
 const swicc = new SwiCCManager();
@@ -58,7 +62,7 @@ swicc.onLog = (msg) => log(msg, 'info');
 // ─── 连接 ───
 swicc.onStatusChange = (status) => {
     if (status === 'connected') {
-        connBadge.textContent = '已连接';
+        connBadge.textContent = t('status_connected');
         connBadge.className = 'badge badge-on';
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
@@ -68,7 +72,7 @@ swicc.onStatusChange = (status) => {
         btnDoubleA.disabled = false;
         btnTestHome.disabled = false;
     } else {
-        connBadge.textContent = '未连接';
+        connBadge.textContent = t('status_disconnected');
         connBadge.className = 'badge badge-off';
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
@@ -81,9 +85,20 @@ swicc.onStatusChange = (status) => {
 
 connectBtn.addEventListener('click', async () => {
     try { await swicc.connect(); }
-    catch (e) { log(`连接失败: ${e.message}`, 'err'); }
+    catch (e) { log(e.message, 'err'); }
 });
 disconnectBtn.addEventListener('click', () => swicc.disconnect());
+
+$('langToggleBtn').addEventListener('click', () => {
+    switchLanguage();
+    connBadge.textContent = swicc.isConnected ? t('status_connected') : t('status_disconnected');
+    updateColorStateLabel();
+    if (imageLoaded) {
+        srcLabel.textContent = `${t('label_src')} ${srcPreview.width}×${srcPreview.height}`;
+        outLabel.textContent = `${t('label_out')} ${outPreview.width}×${outPreview.height}`;
+    }
+    log(getCurrentLang() === 'zh' ? '已切换为中文' : 'Switched to English', 'ok');
+});
 
 // ─── 图片上传 ───
 uploadZone.addEventListener('click', () => fileInput.click());
@@ -110,11 +125,11 @@ async function loadImage(file) {
         srcPreview.width = src.width;
         srcPreview.height = src.height;
         sCtx.drawImage(src, 0, 0);
-        srcLabel.textContent = `原图 ${src.width}×${src.height}`;
+        srcLabel.textContent = `${t('label_src')} ${src.width}×${src.height}`;
 
         previewRow.style.display = 'grid';
         processBtn.disabled = false;
-        uploadZone.innerHTML = `<div class="icon">✅</div><div>${file.name}</div><div style="font-size:12px;color:var(--text-muted)">点击重新上传</div>`;
+        uploadZone.innerHTML = `<div class="icon">✅</div><div>${file.name}</div><div style="font-size:12px;color:var(--text-muted)">${t('upload_text')}</div>`;
 
         // 自动处理
         processImage();
@@ -159,7 +174,7 @@ function processImage() {
     outPreview.width = out.width;
     outPreview.height = out.height;
     oCtx.drawImage(out, 0, 0);
-    outLabel.textContent = `量化后 ${w}×${h}`;
+    outLabel.textContent = `${t('label_out')} ${w}×${h}`;
 
     // 显示调色板
     layers = imgProc.getLayers();
@@ -180,10 +195,10 @@ function processImage() {
     });
     const est = engine.estimateTime(layers, w, h);
     const mins = Math.ceil(est.totalMinutes);
-    $('statTime').textContent = mins < 60 ? `${mins} 分钟` : `${Math.floor(mins/60)}h${mins%60}m`;
+    $('statTime').textContent = mins < 60 ? `${mins} ${getCurrentLang()==='zh'?'分钟':'min'}` : `${Math.floor(mins/60)}h${mins%60}m`;
     statsPanel.style.display = 'grid';
 
-    log(`量化完成: ${layers.length} 色, ${totalPixels} 像素, 预估 ${mins} 分钟`, 'ok');
+    log(t('log_process_success', { layers: layers.length, pixels: totalPixels }), 'ok');
     updateStartBtn();
 }
 
@@ -210,24 +225,24 @@ function renderPalette(layers) {
 
         paletteDisplay.appendChild(sw);
     });
-    paletteInfo.textContent = `${layers.length} 种颜色`;
+    paletteInfo.textContent = t('palette_info', { count: layers.length });
 }
 
 // ─── 测试换色 ───
 let globalColorState = { h: 0, s: 0, v: 0 };
 
 function updateColorStateLabel() {
-    $('colorStateLabel').textContent = `当前换色跟踪状态: H:${globalColorState.h}, S:${globalColorState.s}, V:${globalColorState.v}`;
+    $('colorStateLabel').textContent = t('color_state_label', { h: globalColorState.h, s: globalColorState.s, v: globalColorState.v });
 }
 
 $('btnResetColorState').addEventListener('click', () => {
     globalColorState = { h: 0, s: 0, v: 0 };
     updateColorStateLabel();
-    log('网页换色状态已重置为 (0,0,0)', 'ok');
+    log(t('log_reset_color_done'), 'ok');
 });
 
 async function testColorChange(targetRGB) {
-    if (!swicc.isConnected) return log('串口未连接', 'err');
+    if (!swicc.isConnected) return log(t('status_disconnected'), 'err');
     
     const w = parseInt($('canvasW').value) || 256;
     const h = parseInt($('canvasH').value) || 256;
@@ -245,7 +260,7 @@ async function testColorChange(targetRGB) {
     
     const frames = engine.generateColorChangeFrames(targetRGB);
     
-    log(`开始测试换色到 RGB(${targetRGB.r},${targetRGB.g},${targetRGB.b})...`, 'info');
+    log(t('log_test_color', { r: targetRGB.r, g: targetRGB.g, b: targetRGB.b }), 'info');
     const ok = await swicc.sendFrames(frames, {
         shouldStop: () => false,
         shouldPause: () => false
@@ -255,7 +270,7 @@ async function testColorChange(targetRGB) {
         // 测试成功，保存新的颜色状态
         globalColorState = { ...engine.colorState };
         updateColorStateLabel();
-        log('换色测试完成！', 'ok');
+        log(t('log_test_color_done'), 'ok');
     }
 }
 
@@ -269,27 +284,20 @@ pauseBtn.addEventListener('click', () => {
     if (!drawEngine) return;
     if (drawEngine.isPaused) {
         drawEngine.resume();
-        pauseBtn.textContent = '⏸ 暂停';
-        log('已恢复', 'info');
+        pauseBtn.textContent = t('btn_pause');
+        log(t('log_resumed'), 'info');
     } else {
         drawEngine.pause();
-        pauseBtn.textContent = '▶ 继续';
-        log('已暂停', 'warn');
+        pauseBtn.textContent = t('btn_resume');
+        log(t('log_paused'), 'warn');
     }
 });
 stopBtn.addEventListener('click', () => {
     if (drawEngine) drawEngine.stop();
-    colorModal.classList.remove('show');
 });
 
-$('modalContinueBtn').addEventListener('click', () => {
-    colorModal.classList.remove('show');
-    if (drawEngine) drawEngine.resume();
-});
-$('modalStopBtn').addEventListener('click', () => {
-    colorModal.classList.remove('show');
-    if (drawEngine) drawEngine.stop();
-});
+// $('modalContinueBtn').addEventListener('click', ... removed
+// $('modalStopBtn').addEventListener('click', ... removed
 
 async function startDrawing() {
     const w = parseInt($('canvasW').value) || 256;
@@ -329,7 +337,7 @@ async function startDrawing() {
     stopBtn.disabled = false;
     processBtn.disabled = true;
 
-    log('═══════════ 开始绘制 ═══════════', 'ok');
+    log(t('log_draw_start'), 'ok');
 
     await drawEngine.drawAll(layers, w, h);
 
@@ -342,7 +350,7 @@ async function startDrawing() {
     pauseBtn.disabled = true;
     stopBtn.disabled = true;
     processBtn.disabled = false;
-    pauseBtn.textContent = '⏸ 暂停';
+    pauseBtn.textContent = t('btn_pause');
     btnTestHome.disabled = false;
     btnDoubleA.disabled = false;
 }
@@ -354,7 +362,7 @@ btnDoubleA.addEventListener('click', async () => {
     if (!swicc.isConnected) return;
     
     // 双击 A (配对用)
-    log('发送：按 A 键...', 'info');
+    log(t('log_press_a'), 'info');
     // 使用 RT 模式直接发命令
     const hexA = '080000';
     const hexNone = '000000';
@@ -368,9 +376,9 @@ btnDoubleA.addEventListener('click', async () => {
         await swicc.sendRaw(`+QD ${hexA}`);
         await new Promise(r => setTimeout(r, 60)); // 按下 60ms
         await swicc.sendRaw(`+QD ${hexNone}`);
-        log('A 键已发送', 'ok');
+        log('A OK', 'ok');
     } catch(e) {
-        log('发送失败: ' + e.message, 'err');
+        log('Error: ' + e.message, 'err');
     }
 });
 
@@ -395,14 +403,14 @@ btnTestHome.addEventListener('click', async () => {
     startBtn.disabled = true;
     btnDoubleA.disabled = true;
     
-    log(`开始测试归零: 左 ${engine.config.startX} + 上 ${engine.config.startY} (${frames.length} 帧)`, 'info');
+    log(t('log_test_home', { x: engine.config.startX, y: engine.config.startY }), 'info');
     
     await swicc.sendFrames(frames, {
         shouldStop: () => false,
         shouldPause: () => false
     });
     
-    log('归零测试完成。请观察画笔是否恰好到达左上角边缘。如果超出边界停在半空，请减小 起始X / 起始Y。', 'warn');
+    log(t('log_test_home_done'), 'warn');
     
     btnTestHome.disabled = false;
     btnDoubleA.disabled = false;

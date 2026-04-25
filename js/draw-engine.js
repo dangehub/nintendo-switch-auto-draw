@@ -3,6 +3,7 @@
  * 将像素层转换为 SwiCC 帧序列，并管理绘制流程
  */
 import { BUTTONS, SwiCCManager } from './swicc-manager.js';
+import { t } from './i18n.js';
 
 /**
  * 绘图引擎配置
@@ -308,17 +309,17 @@ export class DrawEngine {
         this._paused = false;
 
         const totalLayers = layers.length;
-        this.onLog(`开始绘制: ${totalLayers} 个颜色层, ${width}×${height}`);
+        this.onLog(`Start drawing: ${totalLayers} layers, ${width}×${height}`);
 
         // 步骤 1：初始化画笔位置
-        this.onLog(`移动画笔到 (0,0)：左 ${this.config.startX} + 上 ${this.config.startY}`);
-        this.onProgress({ phase: 'init', text: '初始化画笔位置...' });
+        this.onLog(t('engine_start_init', { x: this.config.startX, y: this.config.startY }));
+        this.onProgress({ phase: 'init', text: t('engine_start_init', { x: this.config.startX, y: this.config.startY }) });
 
         const initFrames = this.generateInitFrames();
         const initOk = await this.swicc.sendFrames(initFrames, {
-            onProgress: (s, t) => this.onProgress({
-                phase: 'init', sent: s, total: t,
-                text: `初始化: ${s}/${t} 帧`
+            onProgress: (s, t_frame) => this.onProgress({
+                phase: 'init', sent: s, total: t_frame,
+                text: `Init: ${s}/${t_frame}`
             }),
             shouldStop: () => this._stopped,
             shouldPause: () => this._paused,
@@ -336,16 +337,16 @@ export class DrawEngine {
             if (this._stopped) break;
 
             const layer = layers[li];
-            this.onLog(`\n═══ 颜色层 ${li + 1}/${totalLayers}: ${layer.colorHex} (${layer.pixelCount} 像素) ═══`);
+            this.onLog(t('engine_layer_header', { i: li + 1, total: totalLayers, hex: layer.colorHex, px: layer.pixelCount }));
 
             // 1. 如果不是第一层，需要先从上一层的终点复位画笔到 (0,0)
             if (li > 0) {
-                this.onLog(`复位画笔到 (0,0) [从 (${lastEndX}, ${lastEndY})]...`);
+                this.onLog(t('engine_reset_cursor', { x: lastEndX, y: lastEndY }));
                 const resetFrames = this.generateResetFrames(lastEndX, lastEndY);
                 const resetOk = await this.swicc.sendFrames(resetFrames, {
-                    onProgress: (s, t) => this.onProgress({
-                        phase: 'reset', sent: s, total: t,
-                        text: `复位画笔: ${s}/${t} 帧`
+                    onProgress: (s, t_frame) => this.onProgress({
+                        phase: 'reset', sent: s, total: t_frame,
+                        text: t('engine_resetting', { sent: s, total: t_frame })
                     }),
                     shouldStop: () => this._stopped,
                     shouldPause: () => false,
@@ -355,10 +356,10 @@ export class DrawEngine {
             }
 
             // 2. 自动换色（每一层都需要，包含第一层）
-            this.onLog(`正在自动更换颜色为 ${layer.colorHex}...`);
+            this.onLog(t('engine_color_change', { hex: layer.colorHex }));
             this.onProgress({
                 phase: 'color-change', layerIndex: li, totalLayers,
-                text: `自动换色: ${layer.colorHex}`
+                text: t('engine_color_changing', { hex: layer.colorHex })
             });
             const colorFrames = this.generateColorChangeFrames(layer.color);
             const colorOk = await this.swicc.sendFrames(colorFrames, {
@@ -377,14 +378,14 @@ export class DrawEngine {
             this.onLog(`层 ${li + 1} 帧序列: ${layerFrames.length} 帧`);
 
             const drawOk = await this.swicc.sendFrames(layerFrames, {
-                onProgress: (s, t) => this.onProgress({
+                onProgress: (s, t_frame) => this.onProgress({
                     phase: 'drawing',
                     layerIndex: li,
                     totalLayers,
-                    sent: s, total: t,
+                    sent: s, total: t_frame,
                     colorHex: layer.colorHex,
-                    percent: ((li + s / t) / totalLayers * 100).toFixed(1),
-                    text: `绘制层 ${li + 1}/${totalLayers} (${layer.colorHex}): ${Math.round(s / t * 100)}%`
+                    percent: ((li + s / t_frame) / totalLayers * 100).toFixed(1),
+                    text: t('engine_snaking', { sent: s, total: t_frame })
                 }),
                 shouldStop: () => this._stopped,
                 shouldPause: () => this._paused,
@@ -394,12 +395,12 @@ export class DrawEngine {
 
             // 等待该层帧播放完
             await this._waitQueueDrain();
-            this.onLog(`颜色层 ${li + 1} 完成`);
+            this.onLog(`Layer ${li + 1} done`);
         }
 
         if (!this._stopped) {
-            this.onLog('\n🎉 全部绘制完成！');
-            this.onProgress({ phase: 'done', text: '绘制完成！' });
+            this.onLog('\n🎉 ' + t('engine_done', { sec: (this.estimateTime(layers, width, height).totalSeconds).toFixed(1) }));
+            this.onProgress({ phase: 'done', text: t('engine_done', { sec: (this.estimateTime(layers, width, height).totalSeconds).toFixed(1) }) });
         }
     }
 
