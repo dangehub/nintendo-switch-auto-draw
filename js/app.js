@@ -211,11 +211,81 @@ function markCustomPreset() {
     el.addEventListener('input', markCustomPreset);
 });
 
+// 使用 requestAnimationFrame 节流图片处理，避免拖动数值时严重卡顿
+let isProcessing = false;
+let pendingProcess = false;
+function processImageThrottled() {
+    if (isProcessing) {
+        pendingProcess = true;
+        return;
+    }
+    isProcessing = true;
+    requestAnimationFrame(() => {
+        processImage();
+        isProcessing = false;
+        if (pendingProcess) {
+            pendingProcess = false;
+            processImageThrottled();
+        }
+    });
+}
+
 $('ditherMode').addEventListener('change', processImage);
-$('imgScale').addEventListener('input', processImage);
-$('imgOffsetX').addEventListener('input', processImage);
-$('imgOffsetY').addEventListener('input', processImage);
+$('imgScale').addEventListener('input', processImageThrottled);
+$('imgOffsetX').addEventListener('input', processImageThrottled);
+$('imgOffsetY').addEventListener('input', processImageThrottled);
+$('startX').addEventListener('input', processImageThrottled);
+$('startY').addEventListener('input', processImageThrottled);
+$('bwThreshold').addEventListener('input', processImageThrottled);
 $('bwThreshold').addEventListener('change', processImage);
+
+// ─── 鼠标拖拽标签调节数值 ───
+document.querySelectorAll('.drag-label').forEach(label => {
+    let startX = 0;
+    let startVal = 0;
+    let targetInput = null;
+    let step = 1;
+
+    label.addEventListener('mousedown', (e) => {
+        targetInput = $(label.getAttribute('data-target'));
+        if (!targetInput) return;
+        
+        step = parseFloat(label.getAttribute('data-step')) || 1;
+        startX = e.clientX;
+        startVal = parseFloat(targetInput.value) || 0;
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        
+        // 阻止文本被选中
+        e.preventDefault();
+    });
+
+    function onMouseMove(e) {
+        const dx = e.clientX - startX;
+        let newVal = startVal + dx * step;
+        
+        if (targetInput.hasAttribute('min')) {
+            newVal = Math.max(parseFloat(targetInput.getAttribute('min')), newVal);
+        }
+        if (targetInput.hasAttribute('max')) {
+            newVal = Math.min(parseFloat(targetInput.getAttribute('max')), newVal);
+        }
+
+        const decimals = step < 1 ? step.toString().split('.')[1].length : 0;
+        targetInput.value = newVal.toFixed(decimals);
+        
+        targetInput.dispatchEvent(new Event('input'));
+    }
+
+    function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        if (targetInput) {
+            targetInput.dispatchEvent(new Event('change'));
+        }
+    }
+});
 
 // ─── 全屏编辑器 ───
 const btnEdit = $('btnEdit');

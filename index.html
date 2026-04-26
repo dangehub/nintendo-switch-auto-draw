@@ -62,16 +62,16 @@
                     <input type="number" id="canvasH" value="256" min="8" max="512" step="1">
                     <label data-i18n="param_colors">颜色数量</label>
                     <input type="range" id="numColors" min="1" max="32" value="16">
-                    <label data-i18n="param_startx">起始 X</label>
+                    <label class="drag-label" data-target="startX" data-step="1" style="cursor: ew-resize;" data-i18n="param_startx" title="拖动鼠标左右调节">起始 X</label>
                     <input type="number" id="startX" value="128" min="0" max="512">
-                    <label data-i18n="param_starty">起始 Y</label>
+                    <label class="drag-label" data-target="startY" data-step="1" style="cursor: ew-resize;" data-i18n="param_starty" title="拖动鼠标左右调节">起始 Y</label>
                     <input type="number" id="startY" value="128" min="0" max="512">
                     
-                    <label style="color:var(--primary);font-weight:bold" data-i18n="param_scale">图像缩放</label>
-                    <input type="number" id="imgScale" value="1.0" min="0.1" max="10.0" step="0.1">
-                    <label style="color:var(--primary);font-weight:bold" data-i18n="param_offsetx">图像偏移 X</label>
+                    <label class="drag-label" data-target="imgScale" data-step="0.01" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_scale" title="拖动鼠标左右调节">图像缩放</label>
+                    <input type="number" id="imgScale" value="1.0" min="0.01" max="10.0" step="0.01">
+                    <label class="drag-label" data-target="imgOffsetX" data-step="1" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_offsetx" title="拖动鼠标左右调节">图像偏移 X</label>
                     <input type="number" id="imgOffsetX" value="0" step="1">
-                    <label style="color:var(--primary);font-weight:bold" data-i18n="param_offsety">图像偏移 Y</label>
+                    <label class="drag-label" data-target="imgOffsetY" data-step="1" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_offsety" title="拖动鼠标左右调节">图像偏移 Y</label>
                     <input type="number" id="imgOffsetY" value="0" step="1">
 
                     <label style="color:var(--text-secondary)" data-i18n="param_bw_threshold">黑白阈值 (单色)</label>
