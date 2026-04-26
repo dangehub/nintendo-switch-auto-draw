@@ -7,6 +7,8 @@ export class ImageProcessor {
     constructor() {
         /** @type {HTMLCanvasElement} */
         this._srcCanvas = document.createElement('canvas');
+        /** @type {HTMLCanvasElement} 虚拟蒙版 */
+        this._srcMaskCanvas = document.createElement('canvas');
         /** @type {HTMLCanvasElement} */
         this._outCanvas = document.createElement('canvas');
         /** @type {ImageData | null} */
@@ -35,6 +37,13 @@ export class ImageProcessor {
                 this._srcCanvas.height = img.height;
                 const ctx = this._srcCanvas.getContext('2d');
                 ctx.drawImage(img, 0, 0);
+                
+                // 初始化全透明蒙版（表示不擦除任何像素）
+                this._srcMaskCanvas.width = img.width;
+                this._srcMaskCanvas.height = img.height;
+                const mCtx = this._srcMaskCanvas.getContext('2d');
+                mCtx.clearRect(0, 0, img.width, img.height);
+                
                 this._srcImageData = ctx.getImageData(0, 0, img.width, img.height);
                 URL.revokeObjectURL(img.src);
                 resolve({ width: img.width, height: img.height });
@@ -57,7 +66,7 @@ export class ImageProcessor {
     /**
      * 处理图片：缩放 → 量化 → 生成调色板和索引
      */
-    process(targetW, targetH, numColors, useDither = true, scale = 1.0, offsetX = 0, offsetY = 0, bwThreshold = 128) {
+    process(targetW, targetH, numColors, useDither = true, scaleX = 1.0, scaleY = 1.0, offsetX = 0, offsetY = 0, bwThreshold = 128) {
         this.numColors = numColors;
         // 1. 缩放与绘制
         this._outCanvas.width = targetW;
@@ -68,9 +77,16 @@ export class ImageProcessor {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         
-        const drawW = this.srcWidth * scale;
-        const drawH = this.srcHeight * scale;
+        const drawW = this.srcWidth * scaleX;
+        const drawH = this.srcHeight * scaleY;
+        
+        // 绘制原图
         ctx.drawImage(this._srcCanvas, offsetX, offsetY, drawW, drawH);
+        
+        // 应用橡皮擦虚拟蒙版 (使用 destination-out 将蒙版中的透明部分挖空)
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.drawImage(this._srcMaskCanvas, offsetX, offsetY, drawW, drawH);
+        ctx.globalCompositeOperation = 'source-over';
 
         const imageData = ctx.getImageData(0, 0, targetW, targetH);
         const pixels = imageData.data; // RGBA Uint8ClampedArray
@@ -172,6 +188,31 @@ export class ImageProcessor {
         // 按像素数降序排列（先画像素最多的颜色）
         layers.sort((a, b) => b.pixelCount - a.pixelCount);
         return layers;
+    }
+
+    /**
+     * 在虚拟蒙版上记录橡皮擦笔触
+     * @param {number} cx 画布上的 X 坐标
+     * @param {number} cy 画布上的 Y 坐标
+     * @param {number} radius 画笔半径
+     * @param {number} scaleX 当前图像 X 缩放
+     * @param {number} scaleY 当前图像 Y 缩放
+     * @param {number} offsetX 当前图像 X 偏移
+     * @param {number} offsetY 当前图像 Y 偏移
+     */
+    erasePixel(cx, cy, radius, scaleX, scaleY, offsetX, offsetY) {
+        const mCtx = this._srcMaskCanvas.getContext('2d');
+        mCtx.save();
+        // 逆向变换矩阵
+        mCtx.scale(1 / scaleX, 1 / scaleY);
+        mCtx.translate(-offsetX, -offsetY);
+        
+        mCtx.globalCompositeOperation = 'source-over';
+        mCtx.fillStyle = '#000'; // 画不透明颜色，之后做 destination-out 时会挖空
+        mCtx.beginPath();
+        mCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+        mCtx.fill();
+        mCtx.restore();
     }
 
     /**

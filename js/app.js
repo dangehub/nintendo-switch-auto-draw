@@ -154,7 +154,8 @@ const p_canvasH = $('canvasH');
 const p_numColors = numColors; // alias
 const p_startX = $('startX');
 const p_startY = $('startY');
-const p_imgScale = $('imgScale');
+const p_imgScaleX = $('imgScaleX');
+const p_imgScaleY = $('imgScaleY');
 const p_imgOffsetX = $('imgOffsetX');
 const p_imgOffsetY = $('imgOffsetY');
 const p_bwThreshold = $('bwThreshold');
@@ -187,7 +188,8 @@ p_gamePreset.addEventListener('change', () => {
         p_numColors.value = s.numColors;
         p_startX.value = s.startX;
         p_startY.value = s.startY;
-        p_imgScale.value = s.imgScale;
+        p_imgScaleX.value = s.imgScaleX || s.imgScale || 1.0;
+        p_imgScaleY.value = s.imgScaleY || s.imgScale || 1.0;
         p_imgOffsetX.value = s.imgOffsetX;
         p_imgOffsetY.value = s.imgOffsetY;
         p_bwThreshold.value = s.bwThreshold;
@@ -204,7 +206,7 @@ function markCustomPreset() {
     p_gamePreset.value = 'custom';
 }
 
-[p_canvasW, p_canvasH, p_numColors, p_startX, p_startY, p_imgScale, 
+[p_canvasW, p_canvasH, p_numColors, p_startX, p_startY, p_imgScaleX, p_imgScaleY, 
  p_imgOffsetX, p_imgOffsetY, p_bwThreshold, p_pressFrames, 
  p_releaseFrames, p_ditherMode].forEach(el => {
     el.addEventListener('change', markCustomPreset);
@@ -231,7 +233,8 @@ function processImageThrottled() {
 }
 
 $('ditherMode').addEventListener('change', processImage);
-$('imgScale').addEventListener('input', processImageThrottled);
+$('imgScaleX').addEventListener('input', processImageThrottled);
+$('imgScaleY').addEventListener('input', processImageThrottled);
 $('imgOffsetX').addEventListener('input', processImageThrottled);
 $('imgOffsetY').addEventListener('input', processImageThrottled);
 $('startX').addEventListener('input', processImageThrottled);
@@ -291,104 +294,369 @@ document.querySelectorAll('.drag-label').forEach(label => {
 const btnEdit = $('btnEdit');
 const editorModal = $('editorModal');
 const editorCanvas = $('editorCanvas');
+const editorUICanvas = $('editorUICanvas');
 const eCtx = editorCanvas.getContext('2d');
+const uiCtx = editorUICanvas.getContext('2d');
+
+let currentTool = 'transform';
 let isErasing = false;
+let isDraggingHandle = null;
+let isDraggingBody = false;
+let editorDragStart = { x: 0, y: 0 };
+let editorStartParams = {};
+let maskSnapshot = null;
+let paramsSnapshot = null;
+let editorPadding = { x: 0, y: 0, w: 0, h: 0 };
+
+// 工具栏切换
+['toolTransform', 'toolMove', 'toolEraser'].forEach(id => {
+    $(id).addEventListener('click', (e) => {
+        document.querySelectorAll('.btn-tool').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        currentTool = e.currentTarget.getAttribute('data-tool');
+        
+        $('optsTransform').style.display = currentTool === 'transform' ? 'flex' : 'none';
+        $('optsEraser').style.display = currentTool === 'eraser' ? 'flex' : 'none';
+        
+        editorUICanvas.style.cursor = currentTool === 'eraser' ? 'crosshair' : 'default';
+        drawEditorUI();
+    });
+});
+
+$('editorLockRatio').addEventListener('change', drawEditorUI);
+
+function drawEditorUI() {
+    const w = editorUICanvas.width;
+    const h = editorUICanvas.height;
+    uiCtx.clearRect(0, 0, w, h);
+    
+    if (currentTool !== 'transform') return;
+    if (!imgProc.srcWidth) return;
+
+    const padX = editorPadding.x;
+    const padY = editorPadding.y;
+    
+    const scaleX = parseFloat(p_imgScaleX.value) || 1.0;
+    const scaleY = parseFloat(p_imgScaleY.value) || 1.0;
+    const offX = parseInt(p_imgOffsetX.value) || 0;
+    const offY = parseInt(p_imgOffsetY.value) || 0;
+    
+    const drawW = imgProc.srcWidth * scaleX;
+    const drawH = imgProc.srcHeight * scaleY;
+    
+    const bx = padX + offX;
+    const by = padY + offY;
+
+    // 画控制框
+    uiCtx.strokeStyle = '#388bfd';
+    uiCtx.lineWidth = 1;
+    uiCtx.strokeRect(bx, by, drawW, drawH);
+    
+    // 画手柄
+    const handles = getHandles(bx, by, drawW, drawH);
+    uiCtx.fillStyle = '#fff';
+    uiCtx.strokeStyle = '#388bfd';
+    uiCtx.lineWidth = 1;
+    handles.forEach(h => {
+        uiCtx.fillRect(h.x - 3, h.y - 3, 6, 6);
+        uiCtx.strokeRect(h.x - 3, h.y - 3, 6, 6);
+    });
+}
+
+function getHandles(x, y, w, h) {
+    const hw = w / 2;
+    const hh = h / 2;
+    return [
+        { type: 'tl', x: x, y: y, cursor: 'nwse-resize' },
+        { type: 'tc', x: x + hw, y: y, cursor: 'ns-resize' },
+        { type: 'tr', x: x + w, y: y, cursor: 'nesw-resize' },
+        { type: 'ml', x: x, y: y + hh, cursor: 'ew-resize' },
+        { type: 'mr', x: x + w, y: y + hh, cursor: 'ew-resize' },
+        { type: 'bl', x: x, y: y + h, cursor: 'nesw-resize' },
+        { type: 'bc', x: x + hw, y: y + h, cursor: 'ns-resize' },
+        { type: 'br', x: x + w, y: y + h, cursor: 'nwse-resize' }
+    ];
+}
+
+function getHoverHandle(pos) {
+    if (currentTool !== 'transform') return null;
+    const padX = editorPadding.x;
+    const padY = editorPadding.y;
+    
+    const scaleX = parseFloat(p_imgScaleX.value) || 1.0;
+    const scaleY = parseFloat(p_imgScaleY.value) || 1.0;
+    const offX = parseInt(p_imgOffsetX.value) || 0;
+    const offY = parseInt(p_imgOffsetY.value) || 0;
+    const drawW = imgProc.srcWidth * scaleX;
+    const drawH = imgProc.srcHeight * scaleY;
+    
+    const bx = padX + offX;
+    const by = padY + offY;
+    
+    const handles = getHandles(bx, by, drawW, drawH);
+    for (let h of handles) {
+        if (Math.abs(pos.x - h.x) <= 5 && Math.abs(pos.y - h.y) <= 5) return h;
+    }
+    return null;
+}
 
 btnEdit.addEventListener('click', () => {
     editorModal.style.display = 'flex';
     const w = parseInt($('canvasW').value) || 256;
     const h = parseInt($('canvasH').value) || 256;
-    editorCanvas.width = w;
-    editorCanvas.height = h;
     
-    // 设置视觉放大 (在父容器中居中放大)
+    // 定义扩展画板区域，方便查看全貌
+    const padX = Math.max(200, Math.floor(w / 1.5));
+    const padY = Math.max(200, Math.floor(h / 1.5));
+    editorPadding = { x: padX, y: padY, w: w, h: h };
+    
+    const edW = w + padX * 2;
+    const edH = h + padY * 2;
+    
+    editorCanvas.width = edW;
+    editorCanvas.height = edH;
+    editorUICanvas.width = edW;
+    editorUICanvas.height = edH;
+    
+    // 设置视觉放大
     const container = $('editorCanvasContainer');
     const scale = Math.min(
-        (container.clientWidth - 40) / w,
-        (container.clientHeight - 40) / h
+        (container.clientWidth - 40) / edW,
+        (container.clientHeight - 40) / edH
     );
-    const finalScale = Math.max(1, Math.floor(scale));
-    editorCanvas.style.width = `${w * finalScale}px`;
-    editorCanvas.style.height = `${h * finalScale}px`;
+    // 在这里允许非整数比例以充分利用屏幕
+    editorCanvas.style.width = `${edW * scale}px`;
+    editorCanvas.style.height = `${edH * scale}px`;
     editorCanvas.style.imageRendering = 'pixelated';
+    editorUICanvas.style.width = `${edW * scale}px`;
+    editorUICanvas.style.height = `${edH * scale}px`;
 
-    // 填充白底，方便橡皮擦表现
-    eCtx.fillStyle = '#FFFFFF';
-    eCtx.fillRect(0, 0, w, h);
-    eCtx.drawImage(outPreview, 0, 0);
+    // 绘制当前画面
+    renderEditorCanvas();
+    drawEditorUI();
+
+    // 记录快照以支持“取消”
+    paramsSnapshot = {
+        scaleX: p_imgScaleX.value,
+        scaleY: p_imgScaleY.value,
+        offX: p_imgOffsetX.value,
+        offY: p_imgOffsetY.value
+    };
+    
+    if (imgProc._srcMaskCanvas) {
+        maskSnapshot = document.createElement('canvas');
+        maskSnapshot.width = imgProc._srcMaskCanvas.width;
+        maskSnapshot.height = imgProc._srcMaskCanvas.height;
+        maskSnapshot.getContext('2d').drawImage(imgProc._srcMaskCanvas, 0, 0);
+    }
 });
 
 $('editorCancelBtn').addEventListener('click', () => {
     editorModal.style.display = 'none';
+    if (paramsSnapshot) {
+        p_imgScaleX.value = paramsSnapshot.scaleX;
+        p_imgScaleY.value = paramsSnapshot.scaleY;
+        p_imgOffsetX.value = paramsSnapshot.offX;
+        p_imgOffsetY.value = paramsSnapshot.offY;
+    }
+    if (maskSnapshot && imgProc._srcMaskCanvas) {
+        const mCtx = imgProc._srcMaskCanvas.getContext('2d');
+        mCtx.clearRect(0, 0, maskSnapshot.width, maskSnapshot.height);
+        mCtx.drawImage(maskSnapshot, 0, 0);
+    }
+    processImage();
 });
 
 $('editorSaveBtn').addEventListener('click', () => {
     editorModal.style.display = 'none';
-    const w = editorCanvas.width;
-    const h = editorCanvas.height;
-    const editedImageData = eCtx.getImageData(0, 0, w, h);
-    
-    // 应用修改到 imgProc
-    imgProc.applyEditedMask(editedImageData, w, h);
-    
-    // 重新提取并渲染 UI
-    updateUIFromEditedImage(w, h);
+    // 因为是实时预览，点击保存只需关闭弹窗并刷新侧边栏数据即可
+    processImage();
 });
 
-function getEditorPos(e) {
-    const rect = editorCanvas.getBoundingClientRect();
-    const scaleX = editorCanvas.width / rect.width;
-    const scaleY = editorCanvas.height / rect.height;
+function getUIPos(e) {
+    const rect = editorUICanvas.getBoundingClientRect();
+    const scaleX = editorUICanvas.width / rect.width;
+    const scaleY = editorUICanvas.height / rect.height;
     return {
         x: Math.floor((e.clientX - rect.left) * scaleX),
         y: Math.floor((e.clientY - rect.top) * scaleY)
     };
 }
 
-editorCanvas.addEventListener('mousedown', (e) => {
-    isErasing = true;
-    eraseOnEditor(e);
-});
-editorCanvas.addEventListener('mousemove', (e) => {
-    if (isErasing) eraseOnEditor(e);
-});
-editorCanvas.addEventListener('mouseup', () => isErasing = false);
-editorCanvas.addEventListener('mouseleave', () => isErasing = false);
-
-function eraseOnEditor(e) {
-    const pos = getEditorPos(e);
-    const size = parseInt($('eraserSize').value) || 10;
+editorUICanvas.addEventListener('mousedown', (e) => {
+    const pos = getUIPos(e);
     
-    // 画白色 (表示擦除)
+    if (currentTool === 'eraser') {
+        isErasing = true;
+        eraseOnEditor(pos);
+        return;
+    }
+    
+    if (currentTool === 'transform') {
+        const handle = getHoverHandle(pos);
+        if (handle) {
+            isDraggingHandle = handle.type;
+        } else {
+            isDraggingBody = true;
+        }
+    } else if (currentTool === 'move') {
+        isDraggingBody = true;
+    }
+    
+    if (isDraggingHandle || isDraggingBody) {
+        editorDragStart = pos;
+        editorStartParams = {
+            scaleX: parseFloat(p_imgScaleX.value) || 1.0,
+            scaleY: parseFloat(p_imgScaleY.value) || 1.0,
+            offX: parseInt(p_imgOffsetX.value) || 0,
+            offY: parseInt(p_imgOffsetY.value) || 0
+        };
+    }
+});
+
+editorUICanvas.addEventListener('mousemove', (e) => {
+    const pos = getUIPos(e);
+    
+    if (currentTool === 'eraser') {
+        if (isErasing) eraseOnEditor(pos);
+        return;
+    }
+    
+    if (currentTool === 'transform' && !isDraggingHandle && !isDraggingBody) {
+        const handle = getHoverHandle(pos);
+        editorUICanvas.style.cursor = handle ? handle.cursor : 'move';
+    } else if (currentTool === 'move' && !isDraggingBody) {
+        editorUICanvas.style.cursor = 'move';
+    }
+    
+    if (isDraggingBody) {
+        const dx = pos.x - editorDragStart.x;
+        const dy = pos.y - editorDragStart.y;
+        p_imgOffsetX.value = Math.round(editorStartParams.offX + dx);
+        p_imgOffsetY.value = Math.round(editorStartParams.offY + dy);
+        markCustomPreset();
+        processImageThrottled();
+        drawEditorUI();
+    } else if (isDraggingHandle) {
+        const dx = pos.x - editorDragStart.x;
+        const dy = pos.y - editorDragStart.y;
+        
+        const origW = imgProc.srcWidth * editorStartParams.scaleX;
+        const origH = imgProc.srcHeight * editorStartParams.scaleY;
+        
+        let newW = origW;
+        let newH = origH;
+        let newOffX = editorStartParams.offX;
+        let newOffY = editorStartParams.offY;
+        
+        if (isDraggingHandle.includes('r')) newW = origW + dx;
+        if (isDraggingHandle.includes('l')) { newW = origW - dx; newOffX = editorStartParams.offX + dx; }
+        if (isDraggingHandle.includes('b')) newH = origH + dy;
+        if (isDraggingHandle.includes('t')) { newH = origH - dy; newOffY = editorStartParams.offY + dy; }
+        
+        if (newW < 1) { newW = 1; newOffX = p_imgOffsetX.value; }
+        if (newH < 1) { newH = 1; newOffY = p_imgOffsetY.value; }
+        
+        if ($('editorLockRatio').checked && isDraggingHandle.length === 2) {
+            const ratio = origW / origH;
+            if (Math.abs(dx) > Math.abs(dy)) {
+                newH = newW / ratio;
+                if (isDraggingHandle.includes('t')) newOffY = editorStartParams.offY + (origH - newH);
+            } else {
+                newW = newH * ratio;
+                if (isDraggingHandle.includes('l')) newOffX = editorStartParams.offX + (origW - newW);
+            }
+        }
+        
+        p_imgScaleX.value = (newW / imgProc.srcWidth).toFixed(3);
+        p_imgScaleY.value = (newH / imgProc.srcHeight).toFixed(3);
+        p_imgOffsetX.value = Math.round(newOffX);
+        p_imgOffsetY.value = Math.round(newOffY);
+        markCustomPreset();
+        processImageThrottled();
+        drawEditorUI();
+    }
+});
+
+editorUICanvas.addEventListener('mouseup', () => {
+    isErasing = false;
+    isDraggingHandle = null;
+    isDraggingBody = false;
+});
+editorUICanvas.addEventListener('mouseleave', () => {
+    isErasing = false;
+    isDraggingHandle = null;
+    isDraggingBody = false;
+});
+
+// 负责绘制带有画板边界的画布
+function renderEditorCanvas() {
+    if ($('editorModal').style.display !== 'flex') return;
+    
+    const ew = editorCanvas.width;
+    const eh = editorCanvas.height;
+    eCtx.clearRect(0, 0, ew, eh);
+    
+    const padX = editorPadding.x;
+    const padY = editorPadding.y;
+    const cw = editorPadding.w;
+    const ch = editorPadding.h;
+
+    // 外部背景颜色
+    eCtx.fillStyle = '#1e1e1e';
+    eCtx.fillRect(0, 0, ew, eh);
+
+    // 画板区域白底
     eCtx.fillStyle = '#FFFFFF';
-    eCtx.fillRect(pos.x - size / 2, pos.y - size / 2, size, size);
+    eCtx.fillRect(padX, padY, cw, ch);
+    
+    // 在底层用半透明绘制原图，用于“画板外”参考
+    if (imgProc.srcWidth) {
+        const scaleX = parseFloat(p_imgScaleX.value) || 1.0;
+        const scaleY = parseFloat(p_imgScaleY.value) || 1.0;
+        const offX = parseInt(p_imgOffsetX.value) || 0;
+        const offY = parseInt(p_imgOffsetY.value) || 0;
+        const drawW = imgProc.srcWidth * scaleX;
+        const drawH = imgProc.srcHeight * scaleY;
+        
+        eCtx.save();
+        eCtx.globalAlpha = 0.3;
+        eCtx.drawImage(imgProc.getSrcCanvas(), padX + offX, padY + offY, drawW, drawH);
+        
+        // 连同挖洞蒙版一起画
+        if (imgProc._srcMaskCanvas) {
+            eCtx.globalCompositeOperation = 'destination-out';
+            eCtx.globalAlpha = 1.0;
+            eCtx.drawImage(imgProc._srcMaskCanvas, padX + offX, padY + offY, drawW, drawH);
+        }
+        eCtx.restore();
+    }
+
+    // 绘制量化后的图像(自带透明度洞)在中心画板
+    eCtx.drawImage(outPreview, padX, padY);
+
+    // 画板边界线
+    eCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    eCtx.setLineDash([5, 5]);
+    eCtx.lineWidth = 1;
+    eCtx.strokeRect(padX - 1, padY - 1, cw + 2, ch + 2);
+    eCtx.setLineDash([]);
 }
 
-function updateUIFromEditedImage(w, h) {
-    // 1. 刷新预览图
-    const out = imgProc.getOutCanvas();
-    const oCtx = outPreview.getContext('2d');
-    oCtx.clearRect(0, 0, outPreview.width, outPreview.height);
-    oCtx.drawImage(out, 0, 0);
+// 在底层蒙版打洞并触发重新量化
+function eraseOnEditor(pos) {
+    const size = parseInt($('eraserSize').value) || 10;
+    const scaleX = parseFloat(p_imgScaleX.value) || 1.0;
+    const scaleY = parseFloat(p_imgScaleY.value) || 1.0;
+    const offX = parseInt(p_imgOffsetX.value) || 0;
+    const offY = parseInt(p_imgOffsetY.value) || 0;
     
-    // 2. 刷新调色板与统计数据
-    layers = imgProc.getLayers();
-    renderPalette(layers);
+    // 扣除 Padding，转为相对于画布的坐标
+    const cx = pos.x - editorPadding.x;
+    const cy = pos.y - editorPadding.y;
     
-    const totalPixels = layers.reduce((s, l) => s + l.pixelCount, 0);
-    $('statLayers').textContent = layers.length;
-    $('statPixels').textContent = totalPixels.toLocaleString();
-    
-    const engine = new DrawEngine(swicc, {
-        canvasWidth: w, canvasHeight: h,
-        startX: parseInt($('startX').value) || 128,
-        startY: parseInt($('startY').value) || 128,
-        pressFrames: parseInt($('pressFrames').value) || 3,
-        releaseFrames: parseInt($('releaseFrames').value) || 3,
-    });
-    const est = engine.estimateTime(layers, w, h);
-    const mins = Math.ceil(est.totalMinutes);
-    $('statTime').textContent = mins < 60 ? `${mins} ${getCurrentLang()==='zh'?'分钟':'min'}` : `${Math.floor(mins/60)}h${mins%60}m`;
+    imgProc.erasePixel(cx, cy, size/2, scaleX, scaleY, offX, offY);
+    processImageThrottled();
 }
 
 function processImage() {
@@ -399,14 +667,15 @@ function processImage() {
     const nc = parseInt(numColors.value) || 16;
     const dither = $('ditherMode').value === 'fs';
     
-    const scale = parseFloat($('imgScale').value) || 1.0;
+    const scaleX = parseFloat($('imgScaleX').value) || 1.0;
+    const scaleY = parseFloat($('imgScaleY').value) || 1.0;
     const offX = parseInt($('imgOffsetX').value) || 0;
     const offY = parseInt($('imgOffsetY').value) || 0;
     const bwThreshold = parseInt($('bwThreshold').value) || 128;
 
-    log(`处理图片: ${w}×${h}, 缩放=${scale}, 偏移=(${offX},${offY}), ${nc} 色, 抖动=${dither ? '开' : '关'}`, 'info');
+    log(`处理图片: ${w}×${h}, 缩放=(${scaleX},${scaleY}), 偏移=(${offX},${offY}), ${nc} 色, 抖动=${dither ? '开' : '关'}`, 'info');
 
-    const result = imgProc.process(w, h, nc, dither, scale, offX, offY, bwThreshold);
+    const result = imgProc.process(w, h, nc, dither, scaleX, scaleY, offX, offY, bwThreshold);
 
     // 允许使用编辑器
     $('btnEdit').disabled = false;
@@ -418,6 +687,10 @@ function processImage() {
     outPreview.height = out.height;
     oCtx.drawImage(out, 0, 0);
     outLabel.textContent = `${t('label_out')} ${w}×${h}`;
+    
+    // 同步刷新编辑器画布
+    renderEditorCanvas();
+    drawEditorUI();
 
     // 显示调色板
     layers = imgProc.getLayers();

@@ -302,7 +302,28 @@ body {
 .modal .modal-btns {
     display: flex;
     gap: 12px;
-    justify-content: center;
+    justify-content: flex-end;
+}
+
+/* ─── 编辑器工具栏 ─── */
+.btn-tool {
+    text-align: left;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    transition: all 0.2s;
+}
+.btn-tool:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+.btn-tool.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--border-focus);
+    font-weight: bold;
 }
 
 /* ─── 统计信息 ─── */

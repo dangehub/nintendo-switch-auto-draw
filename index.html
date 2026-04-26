@@ -67,8 +67,10 @@
                     <label class="drag-label" data-target="startY" data-step="1" style="cursor: ew-resize;" data-i18n="param_starty" title="拖动鼠标左右调节">起始 Y</label>
                     <input type="number" id="startY" value="128" min="0" max="512">
                     
-                    <label class="drag-label" data-target="imgScale" data-step="0.01" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_scale" title="拖动鼠标左右调节">图像缩放</label>
-                    <input type="number" id="imgScale" value="1.0" min="0.01" max="10.0" step="0.01">
+                    <label class="drag-label" data-target="imgScaleX" data-step="0.01" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_scale_x" title="拖动鼠标左右调节">图像缩放 X</label>
+                    <input type="number" id="imgScaleX" value="1.0" min="0.01" max="10.0" step="0.01">
+                    <label class="drag-label" data-target="imgScaleY" data-step="0.01" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_scale_y" title="拖动鼠标左右调节">图像缩放 Y</label>
+                    <input type="number" id="imgScaleY" value="1.0" min="0.01" max="10.0" step="0.01">
                     <label class="drag-label" data-target="imgOffsetX" data-step="1" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_offsetx" title="拖动鼠标左右调节">图像偏移 X</label>
                     <input type="number" id="imgOffsetX" value="0" step="1">
                     <label class="drag-label" data-target="imgOffsetY" data-step="1" style="color:var(--primary);font-weight:bold; cursor: ew-resize;" data-i18n="param_offsety" title="拖动鼠标左右调节">图像偏移 Y</label>
@@ -160,20 +162,47 @@
         </div>
     </div>
 
-    <!-- 全屏编辑器弹窗 -->
-    <div class="modal-overlay" id="editorModal" style="display:none; padding: 20px;">
-        <div class="modal" style="max-width: 100%; width: auto; max-height: 100%; height: 100%; display: flex; flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin: 0;" data-i18n="editor_title">橡皮擦模式</h3>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span data-i18n="editor_size">橡皮大小:</span>
-                    <input type="range" id="eraserSize" min="1" max="50" value="10">
-                    <button class="btn btn-accent" id="editorSaveBtn" data-i18n="editor_save">保存并返回</button>
-                    <button class="btn" id="editorCancelBtn" data-i18n="editor_cancel">取消</button>
+    <!-- 图像编辑器 -->
+    <div class="modal-overlay" id="editorModal">
+        <div class="modal" style="max-width: 98vw; max-height: 98vh; width: 98vw; height: 98vh; display: flex; flex-direction: column;">
+            <h3 data-i18n="editor_title" style="margin-bottom: 8px;">图像编辑器</h3>
+            <div style="display: flex; gap: 16px; flex: 1; min-height: 0;">
+                
+                <!-- 左侧工具栏 -->
+                <div class="editor-toolbar" style="display: flex; flex-direction: column; gap: 8px; width: 140px; flex-shrink: 0; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                    <button class="btn btn-tool active" id="toolTransform" data-tool="transform">↖️ <span data-i18n="tool_transform">变换</span></button>
+                    <button class="btn btn-tool" id="toolMove" data-tool="move">✋ <span data-i18n="tool_move">移动</span></button>
+                    <button class="btn btn-tool" id="toolEraser" data-tool="eraser">🖌️ <span data-i18n="tool_eraser">橡皮擦</span></button>
+                    
+                    <hr style="border: 0; border-top: 1px solid var(--border); margin: 8px 0;">
+                    
+                    <!-- 变换工具选项 -->
+                    <div id="optsTransform" class="tool-opts" style="display: flex; flex-direction: column; gap: 8px;">
+                        <label style="font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="editorLockRatio" checked>
+                            <span data-i18n="opt_lock_ratio">锁定横纵比</span>
+                        </label>
+                    </div>
+
+                    <!-- 橡皮擦选项 -->
+                    <div id="optsEraser" class="tool-opts" style="display: none; flex-direction: column; gap: 8px;">
+                        <label style="font-size: 12px;" data-i18n="editor_eraser_size">橡皮大小</label>
+                        <input type="range" id="eraserSize" min="1" max="50" value="10" style="width: 100%;">
+                    </div>
+                </div>
+
+                <!-- 右侧画布区 -->
+                <div id="editorCanvasContainer" style="flex: 1; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 8px; overflow: hidden; position: relative;">
+                    <!-- 实际绘画层 -->
+                    <canvas id="editorCanvas" style="background: #fff; cursor: crosshair; position: absolute; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"></canvas>
+                    <!-- UI交互层 (用于绘制 Bounding Box) -->
+                    <canvas id="editorUICanvas" style="position: absolute; pointer-events: auto;"></canvas>
                 </div>
             </div>
-            <div id="editorCanvasContainer" style="flex: 1; overflow: auto; background: #eee; display: flex; justify-content: center; align-items: center; border-radius: 8px; cursor: crosshair;">
-                <canvas id="editorCanvas" style="box-shadow: 0 4px 12px rgba(0,0,0,0.2); background: white;"></canvas>
+
+            <div class="modal-btns" style="margin-top: 16px;">
+                <button class="btn" id="editorCancelBtn" data-i18n="editor_cancel">取消</button>
+                <button class="btn btn-primary" id="editorSaveBtn" data-i18n="editor_save">保存</button>
             </div>
         </div>
     </div>

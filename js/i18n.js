@@ -19,6 +19,8 @@ const dict = {
         // Card 2: Params
         'card_params': '⚙️ 参数',
         'param_preset': '游戏预设',
+        'param_scale_x': '图像缩放 X',
+        'param_scale_y': '图像缩放 Y',
         'param_width': '画布宽度',
         'param_height': '画布高度',
         'param_colors': '颜色数量',
@@ -49,10 +51,14 @@ const dict = {
         'btn_edit_fullscreen': '🖌️ 橡皮擦 (全屏修改)',
         
         // Editor
-        'editor_title': '橡皮擦模式',
-        'editor_size': '橡皮大小:',
-        'editor_save': '保存并返回',
+        'editor_title': '图像编辑器',
+        'editor_eraser_size': '橡皮大小',
         'editor_cancel': '取消',
+        'editor_save': '保存并应用',
+        'tool_transform': '变换',
+        'tool_move': '移动',
+        'tool_eraser': '橡皮擦',
+        'opt_lock_ratio': '锁定横纵比',
 
         // Card 4: Hardware
         'card_hardware': '🔧 手柄与校准',
@@ -115,6 +121,8 @@ const dict = {
         // Card 2: Params
         'card_params': '⚙️ Parameters',
         'param_preset': 'Game Preset',
+        'param_scale_x': 'Scale X',
+        'param_scale_y': 'Scale Y',
         'param_width': 'Canvas Width',
         'param_height': 'Canvas Height',
         'param_colors': 'Num Colors',
@@ -145,10 +153,14 @@ const dict = {
         'btn_edit_fullscreen': '🖌️ Eraser (Edit)',
         
         // Editor
-        'editor_title': 'Eraser Mode',
-        'editor_size': 'Eraser Size:',
-        'editor_save': 'Save & Close',
+        'editor_title': 'Image Editor',
+        'editor_eraser_size': 'Eraser Size',
         'editor_cancel': 'Cancel',
+        'editor_save': 'Save & Apply',
+        'tool_transform': 'Transform',
+        'tool_move': 'Move',
+        'tool_eraser': 'Eraser',
+        'opt_lock_ratio': 'Lock Aspect Ratio',
 
         // Card 4: Hardware
         'card_hardware': '🔧 Hardware & Calib',
