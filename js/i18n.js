@@ -18,6 +18,7 @@ const dict = {
 
         // Card 2: Params
         'card_params': '⚙️ 参数',
+        'param_preset': '游戏预设',
         'param_width': '画布宽度',
         'param_height': '画布高度',
         'param_colors': '颜色数量',
@@ -113,6 +114,7 @@ const dict = {
 
         // Card 2: Params
         'card_params': '⚙️ Parameters',
+        'param_preset': 'Game Preset',
         'param_width': 'Canvas Width',
         'param_height': 'Canvas Height',
         'param_colors': 'Num Colors',

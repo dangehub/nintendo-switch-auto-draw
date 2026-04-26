@@ -49,8 +49,13 @@
         <!-- 右列：参数 & 控制 -->
         <div style="display:flex;flex-direction:column;gap:16px">
             <div class="card">
-                <div class="card-title" data-i18n="card_params">⚙️ 参数</div>
+                <h3 class="card-title">⚙️ <span data-i18n="card_params">参数</span></h3>
                 <div class="param-grid">
+                    <label data-i18n="param_preset">游戏预设</label>
+                    <select id="gamePreset"></select>
+                    
+                    <div style="grid-column: 1 / -1; height: 1px; background: var(--border); margin: 4px 0;"></div>
+
                     <label data-i18n="param_width">画布宽度</label>
                     <input type="number" id="canvasW" value="256" min="8" max="512" step="1">
                     <label data-i18n="param_height">画布高度</label>

@@ -6,6 +6,7 @@ import { SwiCCManager } from './swicc-manager.js';
 import { ImageProcessor } from './image-processor.js';
 import { DrawEngine } from './draw-engine.js';
 import { t, initI18n, switchLanguage, getCurrentLang } from './i18n.js';
+import { GAME_PRESETS } from './presets.js';
 
 // 初始化多语言
 initI18n();
@@ -98,6 +99,7 @@ $('langToggleBtn').addEventListener('click', () => {
         outLabel.textContent = `${t('label_out')} ${outPreview.width}×${outPreview.height}`;
     }
     log(getCurrentLang() === 'zh' ? '已切换为中文' : 'Switched to English', 'ok');
+    initPresetOptions();
 });
 
 // ─── 图片上传 ───
@@ -147,6 +149,68 @@ processBtn.addEventListener('click', processImage);
 $('canvasW').addEventListener('change', processImage);
 $('canvasH').addEventListener('change', processImage);
 numColors.addEventListener('change', processImage);
+const p_canvasW = $('canvasW');
+const p_canvasH = $('canvasH');
+const p_numColors = numColors; // alias
+const p_startX = $('startX');
+const p_startY = $('startY');
+const p_imgScale = $('imgScale');
+const p_imgOffsetX = $('imgOffsetX');
+const p_imgOffsetY = $('imgOffsetY');
+const p_bwThreshold = $('bwThreshold');
+const p_pressFrames = $('pressFrames');
+const p_releaseFrames = $('releaseFrames');
+const p_ditherMode = $('ditherMode');
+const p_gamePreset = $('gamePreset');
+
+// 初始化预设选项
+function initPresetOptions() {
+    p_gamePreset.innerHTML = '';
+    const lang = getCurrentLang();
+    GAME_PRESETS.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = lang === 'zh' ? p.nameZh : p.nameEn;
+        p_gamePreset.appendChild(opt);
+    });
+}
+initPresetOptions();
+
+// 当预设改变时应用参数
+p_gamePreset.addEventListener('change', () => {
+    const pId = p_gamePreset.value;
+    const preset = GAME_PRESETS.find(p => p.id === pId);
+    if (preset && preset.settings) {
+        const s = preset.settings;
+        p_canvasW.value = s.canvasW;
+        p_canvasH.value = s.canvasH;
+        p_numColors.value = s.numColors;
+        p_startX.value = s.startX;
+        p_startY.value = s.startY;
+        p_imgScale.value = s.imgScale;
+        p_imgOffsetX.value = s.imgOffsetX;
+        p_imgOffsetY.value = s.imgOffsetY;
+        p_bwThreshold.value = s.bwThreshold;
+        p_pressFrames.value = s.pressFrames;
+        p_releaseFrames.value = s.releaseFrames;
+        p_ditherMode.value = s.ditherMode;
+        
+        colorCountLabel.textContent = s.numColors;
+        processImage();
+    }
+});
+
+function markCustomPreset() {
+    p_gamePreset.value = 'custom';
+}
+
+[p_canvasW, p_canvasH, p_numColors, p_startX, p_startY, p_imgScale, 
+ p_imgOffsetX, p_imgOffsetY, p_bwThreshold, p_pressFrames, 
+ p_releaseFrames, p_ditherMode].forEach(el => {
+    el.addEventListener('change', markCustomPreset);
+    el.addEventListener('input', markCustomPreset);
+});
+
 $('ditherMode').addEventListener('change', processImage);
 $('imgScale').addEventListener('input', processImage);
 $('imgOffsetX').addEventListener('input', processImage);
