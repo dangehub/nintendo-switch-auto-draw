@@ -356,18 +356,22 @@ export class DrawEngine {
             }
 
             // 2. 自动换色（每一层都需要，包含第一层）
-            this.onLog(t('engine_color_change', { hex: layer.colorHex }));
-            this.onProgress({
-                phase: 'color-change', layerIndex: li, totalLayers,
-                text: t('engine_color_changing', { hex: layer.colorHex })
-            });
-            const colorFrames = this.generateColorChangeFrames(layer.color);
-            const colorOk = await this.swicc.sendFrames(colorFrames, {
-                shouldStop: () => this._stopped,
-                shouldPause: () => this._paused
-            });
-            if (!colorOk) break;
-            await this._waitQueueDrain();
+            if (totalLayers === 1 && layer.colorHex === '#000000') {
+                this.onLog(t('engine_skip_color'));
+            } else {
+                this.onLog(t('engine_color_change', { hex: layer.colorHex }));
+                this.onProgress({
+                    phase: 'color-change', layerIndex: li, totalLayers,
+                    text: t('engine_color_changing', { hex: layer.colorHex })
+                });
+                const colorFrames = this.generateColorChangeFrames(layer.color);
+                const colorOk = await this.swicc.sendFrames(colorFrames, {
+                    shouldStop: () => this._stopped,
+                    shouldPause: () => this._paused
+                });
+                if (!colorOk) break;
+                await this._waitQueueDrain();
+            }
 
             // 生成并发送该层帧序列
             const layerData = this.generateLayerFrames(layer.grid, width, height);

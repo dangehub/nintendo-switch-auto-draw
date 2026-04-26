@@ -58,6 +58,7 @@ export class ImageProcessor {
      * 处理图片：缩放 → 量化 → 生成调色板和索引
      */
     process(targetW, targetH, numColors, useDither = true, scale = 1.0, offsetX = 0, offsetY = 0) {
+        this.numColors = numColors;
         // 1. 缩放与绘制
         this._outCanvas.width = targetW;
         this._outCanvas.height = targetH;
@@ -89,8 +90,17 @@ export class ImageProcessor {
             return { palette: this.palette, indexedPixels: this.indexedPixels };
         }
 
-        // 3. Median Cut 量化
-        this.palette = medianCut(rgbPixels, numColors);
+        // 3. 颜色量化
+        if (this.numColors === 1) {
+            // 黑白模式 (Splatoon)
+            this.palette = [
+                { r: 0, g: 0, b: 0 },
+                { r: 255, g: 255, b: 255 }
+            ];
+        } else {
+            // Median Cut 量化
+            this.palette = medianCut(rgbPixels, numColors);
+        }
 
         // 4. 映射像素到调色板（跳过透明像素）
         this.indexedPixels = new Uint8Array(targetW * targetH).fill(255);
@@ -132,6 +142,11 @@ export class ImageProcessor {
                 }
             }
             if (count === 0) continue; // 跳过空层
+
+            // 黑白模式下，我们假设画布背景是白色，只需绘制黑色层
+            if (this.numColors === 1 && ci === 1) {
+                continue;
+            }
 
             const c = this.palette[ci];
             layers.push({

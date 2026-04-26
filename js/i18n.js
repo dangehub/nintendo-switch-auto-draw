@@ -83,7 +83,8 @@ const dict = {
         'engine_stopped': '绘制已停止。',
         'engine_snaking': '绘制: {sent}/{total} 帧',
         'engine_resetting': '复位画笔: {sent}/{total} 帧',
-        'engine_color_changing': '自动换色: {hex}'
+        'engine_color_changing': '自动换色: {hex}',
+        'engine_skip_color': '单色/黑白模式：跳过换色...'
     },
     en: {
         // App / Header
@@ -169,7 +170,8 @@ const dict = {
         'engine_stopped': 'Drawing stopped.',
         'engine_snaking': 'Draw: {sent}/{total} frames',
         'engine_resetting': 'Reset: {sent}/{total} frames',
-        'engine_color_changing': 'Auto Color: {hex}'
+        'engine_color_changing': 'Auto Color: {hex}',
+        'engine_skip_color': '1-Color/B&W Mode: Skipping color change...'
     }
 };
 
