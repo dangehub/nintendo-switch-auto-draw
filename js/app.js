@@ -151,6 +151,111 @@ $('ditherMode').addEventListener('change', processImage);
 $('imgScale').addEventListener('input', processImage);
 $('imgOffsetX').addEventListener('input', processImage);
 $('imgOffsetY').addEventListener('input', processImage);
+$('bwThreshold').addEventListener('change', processImage);
+
+// ─── 全屏编辑器 ───
+const btnEdit = $('btnEdit');
+const editorModal = $('editorModal');
+const editorCanvas = $('editorCanvas');
+const eCtx = editorCanvas.getContext('2d');
+let isErasing = false;
+
+btnEdit.addEventListener('click', () => {
+    editorModal.style.display = 'flex';
+    const w = parseInt($('canvasW').value) || 256;
+    const h = parseInt($('canvasH').value) || 256;
+    editorCanvas.width = w;
+    editorCanvas.height = h;
+    
+    // 设置视觉放大 (在父容器中居中放大)
+    const container = $('editorCanvasContainer');
+    const scale = Math.min(
+        (container.clientWidth - 40) / w,
+        (container.clientHeight - 40) / h
+    );
+    const finalScale = Math.max(1, Math.floor(scale));
+    editorCanvas.style.width = `${w * finalScale}px`;
+    editorCanvas.style.height = `${h * finalScale}px`;
+    editorCanvas.style.imageRendering = 'pixelated';
+
+    // 填充白底，方便橡皮擦表现
+    eCtx.fillStyle = '#FFFFFF';
+    eCtx.fillRect(0, 0, w, h);
+    eCtx.drawImage(outPreview, 0, 0);
+});
+
+$('editorCancelBtn').addEventListener('click', () => {
+    editorModal.style.display = 'none';
+});
+
+$('editorSaveBtn').addEventListener('click', () => {
+    editorModal.style.display = 'none';
+    const w = editorCanvas.width;
+    const h = editorCanvas.height;
+    const editedImageData = eCtx.getImageData(0, 0, w, h);
+    
+    // 应用修改到 imgProc
+    imgProc.applyEditedMask(editedImageData, w, h);
+    
+    // 重新提取并渲染 UI
+    updateUIFromEditedImage(w, h);
+});
+
+function getEditorPos(e) {
+    const rect = editorCanvas.getBoundingClientRect();
+    const scaleX = editorCanvas.width / rect.width;
+    const scaleY = editorCanvas.height / rect.height;
+    return {
+        x: Math.floor((e.clientX - rect.left) * scaleX),
+        y: Math.floor((e.clientY - rect.top) * scaleY)
+    };
+}
+
+editorCanvas.addEventListener('mousedown', (e) => {
+    isErasing = true;
+    eraseOnEditor(e);
+});
+editorCanvas.addEventListener('mousemove', (e) => {
+    if (isErasing) eraseOnEditor(e);
+});
+editorCanvas.addEventListener('mouseup', () => isErasing = false);
+editorCanvas.addEventListener('mouseleave', () => isErasing = false);
+
+function eraseOnEditor(e) {
+    const pos = getEditorPos(e);
+    const size = parseInt($('eraserSize').value) || 10;
+    
+    // 画白色 (表示擦除)
+    eCtx.fillStyle = '#FFFFFF';
+    eCtx.fillRect(pos.x - size / 2, pos.y - size / 2, size, size);
+}
+
+function updateUIFromEditedImage(w, h) {
+    // 1. 刷新预览图
+    const out = imgProc.getOutCanvas();
+    const oCtx = outPreview.getContext('2d');
+    oCtx.clearRect(0, 0, outPreview.width, outPreview.height);
+    oCtx.drawImage(out, 0, 0);
+    
+    // 2. 刷新调色板与统计数据
+    layers = imgProc.getLayers();
+    renderPalette(layers);
+    
+    const totalPixels = layers.reduce((s, l) => s + l.pixelCount, 0);
+    $('statLayers').textContent = layers.length;
+    $('statPixels').textContent = totalPixels.toLocaleString();
+    
+    const engine = new DrawEngine(swicc, {
+        canvasWidth: w, canvasHeight: h,
+        startX: parseInt($('startX').value) || 128,
+        startY: parseInt($('startY').value) || 128,
+        pressFrames: parseInt($('pressFrames').value) || 3,
+        releaseFrames: parseInt($('releaseFrames').value) || 3,
+    });
+    const est = engine.estimateTime(layers, w, h);
+    const mins = Math.ceil(est.totalMinutes);
+    $('statTime').textContent = mins < 60 ? `${mins} ${getCurrentLang()==='zh'?'分钟':'min'}` : `${Math.floor(mins/60)}h${mins%60}m`;
+}
 
 function processImage() {
     if (!imageLoaded) return;
@@ -163,10 +268,14 @@ function processImage() {
     const scale = parseFloat($('imgScale').value) || 1.0;
     const offX = parseInt($('imgOffsetX').value) || 0;
     const offY = parseInt($('imgOffsetY').value) || 0;
+    const bwThreshold = parseInt($('bwThreshold').value) || 128;
 
     log(`处理图片: ${w}×${h}, 缩放=${scale}, 偏移=(${offX},${offY}), ${nc} 色, 抖动=${dither ? '开' : '关'}`, 'info');
 
-    const result = imgProc.process(w, h, nc, dither, scale, offX, offY);
+    const result = imgProc.process(w, h, nc, dither, scale, offX, offY, bwThreshold);
+
+    // 允许使用编辑器
+    $('btnEdit').disabled = false;
 
     // 更新量化预览
     const out = imgProc.getOutCanvas();

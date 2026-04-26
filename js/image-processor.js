@@ -57,7 +57,7 @@ export class ImageProcessor {
     /**
      * 处理图片：缩放 → 量化 → 生成调色板和索引
      */
-    process(targetW, targetH, numColors, useDither = true, scale = 1.0, offsetX = 0, offsetY = 0) {
+    process(targetW, targetH, numColors, useDither = true, scale = 1.0, offsetX = 0, offsetY = 0, bwThreshold = 128) {
         this.numColors = numColors;
         // 1. 缩放与绘制
         this._outCanvas.width = targetW;
@@ -74,6 +74,18 @@ export class ImageProcessor {
 
         const imageData = ctx.getImageData(0, 0, targetW, targetH);
         const pixels = imageData.data; // RGBA Uint8ClampedArray
+
+        // 如果是黑白模式，根据 bwThreshold 预先偏移像素亮度
+        if (this.numColors === 1 && bwThreshold !== 128) {
+            const offset = 128 - bwThreshold;
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (pixels[i + 3] > 128) {
+                    pixels[i] = Math.max(0, Math.min(255, pixels[i] + offset));
+                    pixels[i+1] = Math.max(0, Math.min(255, pixels[i+1] + offset));
+                    pixels[i+2] = Math.max(0, Math.min(255, pixels[i+2] + offset));
+                }
+            }
+        }
 
         // 2. 提取非透明 RGB 像素用于生成调色板
         const rgbPixels = [];
@@ -160,6 +172,29 @@ export class ImageProcessor {
         // 按像素数降序排列（先画像素最多的颜色）
         layers.sort((a, b) => b.pixelCount - a.pixelCount);
         return layers;
+    }
+
+    /**
+     * 应用用户在编辑器中涂抹后的遮罩
+     * 编辑器传回来的 imageData 中，如果某像素是白色或者全透明，
+     * 就将其在内部索引中标记为 255 (忽略不画)
+     */
+    applyEditedMask(editedImageData, w, h) {
+        if (!this.indexedPixels) return;
+        const data = editedImageData.data;
+        for (let i = 0; i < this.indexedPixels.length; i++) {
+            const idx = i * 4;
+            const r = data[idx];
+            const g = data[idx+1];
+            const b = data[idx+2];
+            const a = data[idx+3];
+            // 如果是透明，或者是纯白色，就擦除
+            if (a < 128 || (r > 250 && g > 250 && b > 250)) {
+                this.indexedPixels[i] = 255;
+            }
+        }
+        // 重绘输出 Canvas
+        this._renderOutput(w, h, null);
     }
 
     /** @private */

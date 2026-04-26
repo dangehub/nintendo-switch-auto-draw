@@ -26,6 +26,7 @@ const dict = {
         'param_scale': '图像缩放',
         'param_offsetx': '图像偏移 X',
         'param_offsety': '图像偏移 Y',
+        'param_bw_threshold': '黑白阈值 (单色)',
         'param_pf': '按键帧数(pf)',
         'param_rf': '释放帧数(rf)',
         'param_dither': '抖动算法',
@@ -44,6 +45,13 @@ const dict = {
         'btn_pause': '⏸ 暂停',
         'btn_resume': '▶ 继续',
         'btn_stop': '⏹ 停止',
+        'btn_edit_fullscreen': '🖌️ 橡皮擦 (全屏修改)',
+        
+        // Editor
+        'editor_title': '橡皮擦模式',
+        'editor_size': '橡皮大小:',
+        'editor_save': '保存并返回',
+        'editor_cancel': '取消',
 
         // Card 4: Hardware
         'card_hardware': '🔧 手柄与校准',
@@ -113,6 +121,7 @@ const dict = {
         'param_scale': 'Image Scale',
         'param_offsetx': 'Image Offset X',
         'param_offsety': 'Image Offset Y',
+        'param_bw_threshold': 'B&W Threshold (1-Color)',
         'param_pf': 'Press Frames (pf)',
         'param_rf': 'Release Frames (rf)',
         'param_dither': 'Dithering',
@@ -131,6 +140,13 @@ const dict = {
         'btn_pause': '⏸ Pause',
         'btn_resume': '▶ Resume',
         'btn_stop': '⏹ Stop',
+        'btn_edit_fullscreen': '🖌️ Eraser (Edit)',
+        
+        // Editor
+        'editor_title': 'Eraser Mode',
+        'editor_size': 'Eraser Size:',
+        'editor_save': 'Save & Close',
+        'editor_cancel': 'Cancel',
 
         // Card 4: Hardware
         'card_hardware': '🔧 Hardware & Calib',

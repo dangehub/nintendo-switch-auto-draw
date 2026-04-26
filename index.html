@@ -39,6 +39,7 @@
                 <div class="preview-box">
                     <canvas id="outPreview" width="256" height="256"></canvas>
                     <div class="label" id="outLabel" data-i18n="label_out">量化后</div>
+                    <button class="btn btn-primary" id="btnEdit" style="margin-top: 8px; width: 100%; font-size: 12px; padding: 4px;" disabled data-i18n="btn_edit_fullscreen">🖌️ 橡皮擦 (全屏修改)</button>
                 </div>
             </div>
             <div class="palette" id="paletteDisplay"></div>
@@ -67,6 +68,9 @@
                     <input type="number" id="imgOffsetX" value="0" step="1">
                     <label style="color:var(--primary);font-weight:bold" data-i18n="param_offsety">图像偏移 Y</label>
                     <input type="number" id="imgOffsetY" value="0" step="1">
+
+                    <label style="color:var(--text-secondary)" data-i18n="param_bw_threshold">黑白阈值 (单色)</label>
+                    <input type="range" id="bwThreshold" min="0" max="255" value="128">
 
                     <label data-i18n="param_pf">按键帧数(pf)</label>
                     <input type="number" id="pressFrames" value="3" min="1" max="10">
@@ -148,6 +152,24 @@
                 <button class="btn" id="clearLogBtn" style="margin-left:auto;padding:3px 10px;font-size:11px" data-i18n="btn_clear_log">清空</button>
             </div>
             <div class="log-box" id="logBox"></div>
+        </div>
+    </div>
+
+    <!-- 全屏编辑器弹窗 -->
+    <div class="modal-overlay" id="editorModal" style="display:none; padding: 20px;">
+        <div class="modal" style="max-width: 100%; width: auto; max-height: 100%; height: 100%; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;" data-i18n="editor_title">橡皮擦模式</h3>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span data-i18n="editor_size">橡皮大小:</span>
+                    <input type="range" id="eraserSize" min="1" max="50" value="10">
+                    <button class="btn btn-accent" id="editorSaveBtn" data-i18n="editor_save">保存并返回</button>
+                    <button class="btn" id="editorCancelBtn" data-i18n="editor_cancel">取消</button>
+                </div>
+            </div>
+            <div id="editorCanvasContainer" style="flex: 1; overflow: auto; background: #eee; display: flex; justify-content: center; align-items: center; border-radius: 8px; cursor: crosshair;">
+                <canvas id="editorCanvas" style="box-shadow: 0 4px 12px rgba(0,0,0,0.2); background: white;"></canvas>
+            </div>
         </div>
     </div>
 
